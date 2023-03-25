@@ -7,7 +7,7 @@ import cv2
 import os
 import numpy as np
 from tkVideoPlayer import TkinterVideo
-from tkinter import *
+from mtkinter import *
 
 class VideoMaker:
 
@@ -56,35 +56,19 @@ class VideoMaker:
 
 class HumanFeedback:
     def requestHumanFeedbackFromVideos(video1, video2, winWidth: int, winHeight: int):
-
-        def pref1Callback():
-            win.destroy()
-            return 1
-        def pref2Callback():
-            win.destroy()
-            return 2
-        def noPrefCallback():
-            win.destroy()
-            return 0
-        def resultsIncomparableCallback():
-            win.destroy()
-            return -1
-
-        
         win = Tk()
+
         canvas = Canvas(win, width=winWidth, height=winHeight)
         canvas.pack()
 
-        prefer_1_button = Button(text="Prefer 1", command=pref1Callback)
-        prefer_2_button = Button(text="Prefer 2", command=pref2Callback)
-        no_preference_button = Button(text="No preference", command=noPrefCallback)
-        results_incomparable_button = Button(text="Incomparable", command=resultsIncomparableCallback)
+        prefer_1_button = Button(text="Prefer 1", command=lambda: set_preference(0))
+        prefer_2_button = Button(text="Prefer 2", command=lambda: set_preference(1))
+        no_preference_button = Button(text="No preference", command=lambda: set_preference(2))
 
         # Add buttons to canvas
         prefer_1_button_window = canvas.create_window(30, winHeight - 30, anchor='n', window=prefer_1_button)
         prefer_2_button_window = canvas.create_window(80, winHeight - 30, anchor='n', window=prefer_2_button)    
         no_preference_button_window = canvas.create_window(150, winHeight - 30, anchor='n', window=no_preference_button)
-        results_incomparable_button_window = canvas.create_window(240, winHeight - 30, anchor='n', window=results_incomparable_button)  
 
         # Player 1
         videoplayer = TkinterVideo(master=win, scaled=True)
@@ -102,4 +86,15 @@ class HumanFeedback:
         videoplayer.play()
         videoplayer2.play()
 
+        preference = -1
+
+        # Callback function to update preference variable
+        def set_preference(value):
+            nonlocal preference
+            preference = value
+            win.destroy()
+
         win.mainloop()
+
+        # Return user's preference
+        return preference
