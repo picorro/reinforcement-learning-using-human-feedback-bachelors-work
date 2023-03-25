@@ -1,5 +1,4 @@
 import numpy as np
-
 from keras.models import Sequential
 from keras.layers import Dense
 import tensorflow as tf
@@ -17,7 +16,7 @@ class RLModel(object):
 		self.create_model()
 
 		self.datetime_str = datetime_str
-		self.checkpoint_path = "./human_critic/rl_model/"+self.datetime_str+"/rl_keras_"+self.datetime_str+".h5"
+		self.checkpoint_path = "./human_critic"+ self.datetime_str 
 
 
 	# Helper Functions
@@ -64,14 +63,19 @@ class RLModel(object):
 
 	def train(self,batch,sess):
 		with self.graph.as_default():
-			self.model.fit(batch[0],batch[1],nb_epoch=1,batch_size=len(batch[0]),verbose=0)
+			self.model.fit(batch[0],batch[1],epochs=1,batch_size=len(batch[0]),verbose=0)
 
 	def save(self):		
-		if not os.path.isdir(os.path.dirname(self.checkpoint_path)):
-			os.mkdir(os.path.dirname(self.checkpoint_path))
+		if not os.path.exists(os.path.dirname(self.checkpoint_path)):
+			os.makedirs(self.checkpoint_path)
 		with self.graph.as_default():
-			self.model.save_weights(self.checkpoint_path)
+			self.model.save_weights(self.checkpoint_path + ".h5")
 
 	def load(self,datetime_str):
+
+		pathstr = os.path.join(os.getcwd(), "human_critic" + datetime_str + ".h5")
+		if not os.path.exists(pathstr):
+			print("File does not exist:", pathstr)
+			return
 		with self.graph.as_default():
-			self.model.load_weights("./human_critic/rl_model/"+datetime_str+"/rl_keras_"+datetime_str+".h5")
+			self.model.load_weights(pathstr)

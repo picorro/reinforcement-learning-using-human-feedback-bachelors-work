@@ -1,3 +1,6 @@
+import sys
+import gymnasium as gym
+sys.modules["gym"] = gym
 from keras.models import Sequential
 from keras.layers import Dense
 import numpy as np
@@ -5,14 +8,16 @@ import math
 import tensorflow as tf
 import tf_slim as slim
 import cv2
-import gym
 from time import sleep
 from datetime import datetime
 import os
+from tkVideoPlayer import TkinterVideo
+from tkinter import *
+from video import * 
 
 def set_env_seed(env,seed):
 	env.np_random = np.random.RandomState(seed)
-	env.seed(None)
+	env.action_space.seed(seed)
 	return env
 
 class HumanCritic(object):
@@ -67,19 +72,25 @@ class HumanCritic(object):
 			self.sess.run(tf.compat.v1.global_variables_initializer())
 
 			self.saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
-			self.checkpoint_path = "./human_critic/hc_model/"+self.datetime_str+"/hc_model_"+self.datetime_str+".ckpt"
+			self.checkpoint_path = "./human_critic"+ self.datetime_str 
 
 
 	def load(self,datetime_str):
 		with self.graph.as_default():
-			ckpt = tf.train.get_checkpoint_state("./human_critic/hc_model/"+datetime_str)
+			pathstr = os.path.join(os.getcwd(), "human_critic" + datetime_str + ".ckpt.meta")
+			if not os.path.exists(pathstr):
+				print("File does not exist:", pathstr)
+				return
+			ckpt = tf.train.get_checkpoint_state(pathstr)
+			print(ckpt)
 			self.saver.restore(self.sess,ckpt.model_checkpoint_path)
 
-	def save(self):			
-		if not os.path.isdir(os.path.dirname(self.checkpoint_path)):
-			os.mkdir(os.path.dirname(self.checkpoint_path))
+	def save(self):
+		print(self.checkpoint_path + str(os.path.isdir(os.path.dirname(self.checkpoint_path))))
+		if not os.path.exists(os.path.dirname(self.checkpoint_path)):
+			os.makedirs(self.checkpoint_path)
 		with self.graph.as_default():
-			self.saver.save(self.sess,self.checkpoint_path)
+			self.saver.save(self.sess,self.checkpoint_path + ".ckpt")
 
 	def _create_model(self,input_data,reuse=False):
 		with self.graph.as_default():
@@ -169,7 +180,6 @@ class HumanCritic(object):
 		self.trijectories.append([trijectory_env_name,trijectory_seed,total_reward,trijectory])
 
 	def _ask_human(self,env,rl_model,sess):
-
 		pref = []
 		preference = -1	# 1=0; 2=1; 3=equal; -1=undecided
 
@@ -213,46 +223,38 @@ class HumanCritic(object):
 		self.add_preference(pref[0],pref[1],preference)
 
 	def ask_human(self):
-
 		if len(self.trijectories) < 2:
 			return
 
 		r = np.asarray(list(range(len(self.trijectories))))
 		np.random.shuffle(r)
 		t = [self.trijectories[r[0]],self.trijectories[r[1]]]
+		
 
+		fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-		# Prepear environments
+		pathExists = os.path.exists('videos')
+		if not pathExists:
+			os.makedirs('videos')
+
+		# Prepare environments
 		envs = []
+		videos = []
 		for i in range(len(t)):
 			env_name,seed,_,trijectory = t[i]
-			env = gym.make(env_name)
+			env = gym.make(env_name, render_mode="rgb_array")
 			env = set_env_seed(env,seed)
 			env.reset()
-			env.render()
 			envs.append(env)
-
-		cv2.imshow("",np.zeros([1,1],dtype=np.uint8))
+			videos.append(cv2.VideoWriter('videos/' + str(i)+".mp4", fourcc, float(30), (600, 400)))
 
 		# Play environments
-		print("Preference (1,2|3):")
+		print("Waiting for evaluation, open the Tk() window")
 		env_idxs = np.zeros([2],dtype=np.int32)
 		preference = -1
-		while True:
-			key = cv2.waitKey(1) & 0xFF
-			if key == ord('1'):
-				preference = 0
-			elif key == ord('2'):
-				preference = 1
-			elif key == ord('3') or key == ord('0'):
-				preference = 2
-
-			if preference != -1:
-				break
-
-			# Step trij
+		for i in range(300):
 			for i in range(len(t)):
-				envs[i].render()
+				videos[i].write(envs[i].render())
 
 				env_name,seed,_,trijectory = t[i]
 				obs,future_obs,action,done = trijectory[env_idxs[i]]
@@ -263,11 +265,14 @@ class HumanCritic(object):
 					envs[i] = set_env_seed(envs[i],seed)
 					envs[i].reset()
 					env_idxs[i] = 0
-			sleep(0.02)
+		for video in videos:
+			video.release()
+
+		preference = HumanFeedback.requestHumanFeedbackFromVideos("./videos/0.mp4", "./videos/1.mp4", 1200, 500)
 
 		if preference != -1:
 			# Generate observation list
-			os = []
+			observations = []
 			for i in range(len(t)):
 				env_name,seed,_,trijectory = t[i]
 				o = []
@@ -275,11 +280,10 @@ class HumanCritic(object):
 				for j in range(len(trijectory)):
 					o.append(trijectory[j][1])
 
-				os.append(o)
+				observations.append(o)
 
-			self.add_preference(os[0],os[1],preference)
+			self.add_preference(observations[0],observations[1],preference)
 
-		cv2.destroyAllWindows()
 		for i in range(len(envs)):
 			envs[i].close()
 

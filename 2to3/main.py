@@ -1,9 +1,12 @@
+import sys
+import gymnasium as gym
+sys.modules["gym"] = gym
 from utils import *
 from model_keras import *
-import gym
 import math
 from humancritic_tensorflow import *
 import argparse
+import random
 
 # Args
 
@@ -17,10 +20,6 @@ parser.add_argument('--ask_type', type=str, default="ask_human",
 args = parser.parse_args()
 
 def render(env,recorde=False):
-	# if recorde:
-	# 	rec = VideoRecorder(env)
-	# else:
-	# 	rec = None
 
 	mean_reward = 0.0
 	mean_traj_reward = 0.0
@@ -44,8 +43,6 @@ def render(env,recorde=False):
 			total_reward += _
 			traj_total_reward += hc_model.predict(obs.reshape([1,-1]))
 
-			# if rec != None:
-			# 	rec.capture_frame()
 
 			idx += 1
 			if done or idx > 300:
@@ -59,16 +56,13 @@ def render(env,recorde=False):
 				mean_reward += total_reward
 				mean_traj_reward += traj_total_reward
 				break
-	# if rec != None:
-	# 	rec.close()
 	print("[ RunLength =",5," MeanReward =",mean_reward / 5.0, "MeantrajReward =",mean_traj_reward/5.0,\
 			" MeanRunTime =",mean_run_time / 5.0, " MaxRunTime =",max_run_time," MinRunTime =",min_run_time,"]")
 
 
-
 env_name = "LunarLander-v2"
-env = gym.make(env_name)
-obs = env.reset()
+env = gym.make(env_name, render_mode="rgb_array")
+obs, _ = env.reset()
 
 action_is_box = type(env.action_space) == gym.spaces.box.Box
 if action_is_box:
@@ -76,7 +70,8 @@ if action_is_box:
 else:
 	action_space_n = env.action_space.n
 
-datetime_str = str(datetime.now())
+now = datetime.now()
+datetime_str = now.strftime("%Y-%m-%d_%H-%M-%S")
 rl_model = RLModel(len(obs),env.action_space.n,datetime_str,layer_sizes=[len(obs)**3,len(obs)**3,len(obs)**3])
 mini_batch = MiniBatch(len(obs),env.action_space.n,batch_size=50)
 hc_model = HumanCritic(len(obs),env.action_space.n,datetime_str)
@@ -85,7 +80,6 @@ if args.load_model_datetime != "":
 	datetime_str = args.load_model_datetime
 	rl_model.load(datetime_str)
 	hc_model.load(datetime_str)
-
 
 eps = 1.0
 eps_discount_factor = 0.0005
@@ -96,34 +90,28 @@ train_freq = 1
 ask_types = ["ask_human","ask_total_reward"]
 ask_type = args.ask_type
 
-hc_ask_human_freq_episodes = 2
+hc_ask_human_freq_episodes = 100000
 hc_train_freq = 1
 hc_loss_mean = 1
 hc_loss_mean_freq = 10
 hc_loss_mean_c = 1
 
-hc_trijectory_interval = 2
+hc_trijectory_interval = 1
 hc_tricectory_c = 0
 trijectory = None
 trijectory_seed = np.random.randint(low=0, high=2**31 - 1, dtype=np.int32)
 trijectory_env_name = env_name
 
-save_freq = 10
+save_freq = 100
 
 #with tf.Session() as sess:
 #	sess.run(tf.global_variables_initializer())
 sess=None
 mean_reward = 0.0
-run_time = 2
+run_time = 1
 
 run_id = 1
 idx = 1
-
-# TEST MODE
-if args.test == True:
-	print("[ TEST_MODE ]")
-	while True:
-		render(env)
 
 while True:
 	frame = 0
@@ -151,18 +139,13 @@ while True:
 
 	# Trijectory
 	if run_id % hc_trijectory_interval == 0 and run_id % render_freq != 0:
-		trijectory_seed = np.random.randint(low=0, high=2**31 - 1, dtype=np.int32)
+		trijectory_seed = random.randint(0, 2**32 - 1)
 		trijectory_env_name = env_name
 		trijectory = []
 		trij_obs_list = []
 
 		env = set_env_seed(env,trijectory_seed)
 
-	# Render
-	if run_id % render_freq == 0:
-		print("[RENDERING]")
-		render(env)
-		run_id += 1
 
 	# Save
 	if run_id % save_freq == 0:
@@ -176,14 +159,11 @@ while True:
 		hc_loss_mean += hc_loss
 		hc_loss_mean_c += 1
 		if hc_loss_mean_c > hc_loss_mean_freq:
-			#print "HCLoss-Mean:",hc_loss_mean/hc_loss_mean_c
 			hc_loss_mean_c = 1.0
 			hc_loss_mean = hc_loss
 
-	obs = env.reset()
+	obs, abc = env.reset()
 	while done == False:
-		if run_id % render_freq == 0:
-			env.render()
 
 		x = np.reshape(obs,[1,-1])
 		pred = rl_model.run(x,sess)
@@ -195,15 +175,14 @@ while True:
 			action_strength[action] += 1
 
 		old_obs = obs.copy()
-		obs,_,done,info = env.step(action)
+		observation, reward, terminated, truncated, info = env.step(action)
+		done = truncated or terminated
 		reward = hc_model.predict(np.reshape(obs,[1,-1]))[0]
-		trij_total_reward += _
+		trij_total_reward += reward
 		total_reward += reward
 
 		if trijectory != None:
 			trijectory.append([old_obs.copy(),obs.copy(),action,done])
-
-		#print "Reward:",reward
 
 		mini_batch.add_sample(old_obs.copy(),obs.copy(),_,action,done=done)
 
