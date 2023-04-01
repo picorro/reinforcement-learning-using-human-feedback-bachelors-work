@@ -10,10 +10,10 @@ import argparse
 import os
 import sys
 
-startTime = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 parser = argparse.ArgumentParser(description="Parsing module.")
-parser.add_argument("-a", "--algo", type=str, required=True, help="Algorithm: --dqn")
+parser.add_argument("-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn")
 parser.add_argument("-l", "--load", type=str, help="Model file location")
 args = parser.parse_args()
 
@@ -21,14 +21,14 @@ args = parser.parse_args()
 dataset, env = get_cartpole()
 
 
-algorithmName = args.algo
+algorithm_name = args.algorithm_name
 algo = None
 
 if args.load != None:
-    if algorithmName == 'dqn':
+    if algorithm_name == 'dqn':
         algo = d3rlpy.algos.DQN()
         algo.build_with_dataset(dataset)
-        algo.load_model(f'./trained_models/{algorithmName}/{args.load}.pt')
+        algo.load_model(f'./trained_models/{algorithm_name}/{args.load}.pt')
         
         evaluate_scorer = evaluate_on_environment(env, render=True)
         rewards = evaluate_scorer(algo)
@@ -49,9 +49,9 @@ evaluate_scorer = evaluate_on_environment(env, render=True)
 rewards = evaluate_scorer(algo)
 
 # Save trained model
-pathExists = os.path.exists(f'./trained_models/{algorithmName}')
+pathExists = os.path.exists(f'./trained_models/{algorithm_name}')
 if not pathExists:
-    os.makedirs(f'trained_models/{algorithmName}')
+    os.makedirs(f'trained_models/{algorithm_name}')
 
-algo.save_model(f'./trained_models/{algorithmName}/{startTime}.pt')
+algo.save_model(f'./trained_models/{algorithm_name}/{start_time}.pt')
 
