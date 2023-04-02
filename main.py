@@ -3,27 +3,42 @@ from d3rlpy.datasets import get_cartpole # CartPole-v0 dataset
 from d3rlpy.metrics.scorer import evaluate_on_environment
 from d3rlpy.metrics.scorer import td_error_scorer
 from d3rlpy.metrics.scorer import average_value_estimation_scorer
+from d3rlpy.dataset import MDPDataset
 from sklearn.model_selection import train_test_split
 from datetime import datetime
 import argparse
 import os
 import sys
+import gym
 
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 parser = argparse.ArgumentParser(description="Parsing module.")
 parser.add_argument("-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn")
+parser.add_argument("-e", "--environment", type=str, required=True, help="Environment: --CartPole-v0")
 parser.add_argument("-m", "--mode", type=str, help="Program mode: --demo --dataset")
 parser.add_argument("-s", "--steps", type=int, help="Step count for any operations the program might do related to model training or dataset generation")
 parser.add_argument("-tm", "--trained_model", type=str, help="Trained model file name yyyy-mm-dd-HH-MM-SS")
+parser.add_argument("-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS")
+
 args = parser.parse_args()
-
-
-dataset, env = get_cartpole()
-
 
 algorithm_name = args.algorithm_name
 algorithm = None
+
+dataset = env = None
+
+if args.dataset != None:
+    dataset = MDPDataset.load(f"./datasets/{algorithm_name}/{args.dataset}.h5")
+    if args.environment == "CartPole-v0":
+        env = gym.make("CartPole-v0")
+    else:
+        sys.exit()
+else:
+    if args.environment == "CartPole-v0":
+        dataset, env = get_cartpole()
+    else:
+        sys.exit()
 
 if args.mode == "demo":
     if algorithm_name == "dqn":
