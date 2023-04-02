@@ -49,6 +49,7 @@ if args.mode == "demo":
         evaluate_scorer = evaluate_on_environment(env, render=True)
         rewards = evaluate_scorer(algorithm)
         sys.exit()
+    sys.exit()
 elif args.mode == "dataset":
     if algorithm_name == "dqn":
         algorithm = d3rlpy.algos.DQN()
