@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 import gym
+from feedback import Feedback
 
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -29,16 +30,22 @@ algorithm = None
 dataset = env = None
 
 if args.dataset != None:
-    dataset = MDPDataset.load(f"./datasets/{algorithm_name}/{args.dataset}.h5")
+    dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}")
+    #dataset = MDPDataset.load(f"./datasets/{args.dataset}")
     if args.environment == "CartPole-v0":
         env = gym.make("CartPole-v0")
+    elif args.environment == "LunarLander-v2":
+        env = gym.make("LunarLander-v2")
     else:
         sys.exit()
 else:
     if args.environment == "CartPole-v0":
         dataset, env = get_cartpole()
+    elif args.environment == "LunarLander-v2":
+        env = gym.make("LunarLander-v2")
     else:
         sys.exit()
+    
 
 if args.mode == "demo":
     if algorithm_name == "dqn":
@@ -64,18 +71,25 @@ elif args.mode == "dataset":
         os.makedirs(f'datasets/{algorithm_name}')
     dataset.dump(f"./datasets/{algorithm_name}/{start_time}.h5")
     sys.exit()
+elif args.mode == "play":
+    Feedback.playEnv(env, recording_name=start_time, record=True)
+    sys.exit()
 
 
     
 
-train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+#train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
 algorithm = d3rlpy.algos.DQN()
-algorithm.build_with_dataset(dataset)
-td_error = td_error_scorer(algorithm, test_episodes)
+#algorithm.build_with_dataset(dataset)
+#algorithm.build_with_env(env)
+#td_error = td_error_scorer(algorithm, test_episodes)
 
 # train offline
-algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
+#algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
+
+# train online
+algorithm.fit_online(env, n_steps=args.steps, n_steps_per_epoch=1000)
 
 evaluate_scorer = evaluate_on_environment(env, render=True)
 rewards = evaluate_scorer(algorithm)
