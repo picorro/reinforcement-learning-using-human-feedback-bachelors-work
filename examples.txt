@@ -1,0 +1,1 @@
+python tensorboard_graphs.py --input_event="C:\Users\Dalius\Desktop\reinforcement-learning-using-human-feedback-baent-learning-using-human-feedback-bachelors-work\tensorboard_logs\dqn\2023-04-07-20-16-31\runs\DQN_online_20230407201631\events.out.tfevents.1680887791.DESKTOP-DQOOEBT" --output_dir=output_images   

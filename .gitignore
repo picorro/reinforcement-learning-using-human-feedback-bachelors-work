@@ -2,3 +2,5 @@
 /datasets/*
 /d3rlpy_logs/*
 /d3rlpy_data/*
+/output_images/*
+/tensorboard_logs/*

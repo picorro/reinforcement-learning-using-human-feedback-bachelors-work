@@ -78,9 +78,9 @@ elif args.mode == "play":
 
     
 
+algorithm = d3rlpy.algos.DQN()
 #train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
-algorithm = d3rlpy.algos.DQN()
 #algorithm.build_with_dataset(dataset)
 #algorithm.build_with_env(env)
 #td_error = td_error_scorer(algorithm, test_episodes)
@@ -89,7 +89,24 @@ algorithm = d3rlpy.algos.DQN()
 #algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
 
 # train online
-algorithm.fit_online(env, n_steps=args.steps, n_steps_per_epoch=1000)
+
+# experience replay buffer
+buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
+explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
+
+tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
+if not os.path.exists(tensorboard_log_dir):
+    os.makedirs(tensorboard_log_dir)
+
+algorithm.fit_online(
+    env,
+    buffer,
+    explorer,
+    n_steps=args.steps, 
+    n_steps_per_epoch=1000,
+    update_start_step=1000,
+    tensorboard_dir=tensorboard_log_dir, 
+)
 
 evaluate_scorer = evaluate_on_environment(env, render=True)
 rewards = evaluate_scorer(algorithm)
