@@ -7,7 +7,7 @@ import pickle
 from d3rlpy.dataset import MDPDataset
 
 class Feedback:
-    def playEnv(env, recording_name='', record=False):
+    def playEnv(self, env, recording_name='', record=False):
         key_to_action = {}
 
         if env.spec.id == "CartPole-v0" or env.spec.id == "CartPole-v1":
@@ -60,7 +60,7 @@ class Feedback:
             with open(f"./datasets/play/{env.spec.id}/{recording_name}.pkl", "wb") as f:
                 pickle.dump(data, f)
     
-    def load_dataset_from_pickle(file_path):
+    def load_dataset_from_pickle(self, file_path):
         with open(file_path, "rb") as f:
             data = pickle.load(f)
 

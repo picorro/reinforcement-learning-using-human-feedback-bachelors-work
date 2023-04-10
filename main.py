@@ -32,34 +32,31 @@ dataset = env = None
 if args.dataset != None:
     dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}")
     #dataset = MDPDataset.load(f"./datasets/{args.dataset}")
-    if args.environment == "CartPole-v0":
-        env = gym.make("CartPole-v0")
-    elif args.environment == "LunarLander-v2":
-        env = gym.make("LunarLander-v2")
-    else:
-        sys.exit()
+
+if args.environment == "CartPole-v0":
+    dataset, env = get_cartpole()
+elif args.environment == "LunarLander-v2":
+    env = gym.make("LunarLander-v2")
+elif args.environment == "CarRacing-v1":
+    env = gym.make("CarRacing-v1")
 else:
-    if args.environment == "CartPole-v0":
-        dataset, env = get_cartpole()
-    elif args.environment == "LunarLander-v2":
-        env = gym.make("LunarLander-v2")
-    else:
-        sys.exit()
+    print("Could not find environment! Exiting...")
+    sys.exit()
     
 
-if args.mode == "demo":
-    if algorithm_name == "dqn":
+if algorithm_name == "dqn":
         algorithm = d3rlpy.algos.DQN()
-        algorithm.build_with_dataset(dataset)
-        algorithm.load_model(f"./trained_models/{algorithm_name}/{args.load}.pt")
-        
-        evaluate_scorer = evaluate_on_environment(env, render=True)
-        rewards = evaluate_scorer(algorithm)
-        sys.exit()
+else:
+    algorithm = d3rlpy.algos.DQN()
+
+if args.mode == "demo":
+    algorithm.build_with_dataset(dataset)
+    algorithm.load_model(f"./trained_models/{algorithm_name}/{args.load}.pt")
+    
+    evaluate_scorer = evaluate_on_environment(env, render=True)
+    rewards = evaluate_scorer(algorithm)
     sys.exit()
 elif args.mode == "dataset":
-    if algorithm_name == "dqn":
-        algorithm = d3rlpy.algos.DQN()
     algorithm.build_with_env(env)
     algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
