@@ -11,6 +11,22 @@ import os
 import sys
 import gym
 from feedback import Feedback
+import torch
+
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+# print(torch.cuda.is_available())
+# print(torch.cuda.device_count())
+
 
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -21,6 +37,8 @@ parser.add_argument("-m", "--mode", type=str, help="Program mode: --demo --datas
 parser.add_argument("-s", "--steps", type=int, help="Step count for any operations the program might do related to model training or dataset generation")
 parser.add_argument("-tm", "--trained_model", type=str, help="Trained model file name yyyy-mm-dd-HH-MM-SS")
 parser.add_argument("-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS")
+parser.add_argument("-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False)
+
 
 args = parser.parse_args()
 
@@ -29,6 +47,8 @@ algorithm = None
 
 dataset = env = None
 
+
+print(args.gpu)
 if args.dataset != None:
     dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}")
     #dataset = MDPDataset.load(f"./datasets/{args.dataset}")
@@ -37,17 +57,20 @@ if args.environment == "CartPole-v0":
     dataset, env = get_cartpole()
 elif args.environment == "LunarLander-v2":
     env = gym.make("LunarLander-v2")
-elif args.environment == "CarRacing-v1":
-    env = gym.make("CarRacing-v1")
+elif args.environment == "CarRacing-v1" or args.environment == "CarRacing-v2":
+    env = gym.make("CarRacing-v2")
 else:
     print("Could not find environment! Exiting...")
     sys.exit()
     
-
 if algorithm_name == "dqn":
-        algorithm = d3rlpy.algos.DQN()
+        algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
+elif algorithm_name == "cql":
+    algorithm = d3rlpy.algos.DiscreteCQL(use_gpu=args.gpu)
+elif algorithm_name == "sac":
+    algorithm = d3rlpy.algos.DiscreteSAC(use_gpu=args.gpu)
 else:
-    algorithm = d3rlpy.algos.DQN()
+    algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
 
 if args.mode == "demo":
     algorithm.build_with_dataset(dataset)
@@ -73,9 +96,6 @@ elif args.mode == "play":
     sys.exit()
 
 
-    
-
-algorithm = d3rlpy.algos.DQN()
 #train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
 #algorithm.build_with_dataset(dataset)
@@ -102,7 +122,7 @@ algorithm.fit_online(
     n_steps=args.steps, 
     n_steps_per_epoch=1000,
     update_start_step=1000,
-    tensorboard_dir=tensorboard_log_dir, 
+    tensorboard_dir=tensorboard_log_dir
 )
 
 evaluate_scorer = evaluate_on_environment(env, render=True)
