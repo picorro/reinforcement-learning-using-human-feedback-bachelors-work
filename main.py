@@ -12,6 +12,7 @@ import sys
 import gym
 from feedback import Feedback
 import torch
+import random
 
 def str2bool(value):
     if isinstance(value, bool):
@@ -34,6 +35,7 @@ parser = argparse.ArgumentParser(description="Parsing module.")
 parser.add_argument("-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn")
 parser.add_argument("-e", "--environment", type=str, required=True, help="Environment: --CartPole-v0")
 parser.add_argument("-m", "--mode", type=str, help="Program mode: --demo --dataset")
+parser.add_argument("-p", "--parameters", type=str, help="Parameter path")
 parser.add_argument("-s", "--steps", type=int, help="Step count for any operations the program might do related to model training or dataset generation")
 parser.add_argument("-tm", "--trained_model", type=str, help="Trained model file name yyyy-mm-dd-HH-MM-SS")
 parser.add_argument("-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS")
@@ -47,8 +49,6 @@ algorithm = None
 
 dataset = env = None
 
-
-print(args.gpu)
 if args.dataset != None:
     dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}")
     #dataset = MDPDataset.load(f"./datasets/{args.dataset}")
@@ -73,8 +73,31 @@ else:
     algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
 
 if args.mode == "demo":
-    algorithm.build_with_dataset(dataset)
-    algorithm.load_model(f"./trained_models/{algorithm_name}/{args.load}.pt")
+    algorithm.build_with_env(env)
+    algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
+
+    # step_counter = 0
+    # while step_counter < 1000:
+    #     observation = env.reset(seed=random.randint(0, 2**32 - 1))
+
+    #     while True:
+    #         env.render()
+    #         action = env.action_space.sample()
+    #         observation, reward, done, info = env.step(action)
+
+    #         step_counter += 1
+    #         if done or step_counter >= 1000:
+    #             break
+
+    # env.close()
+
+
+    algorithm.fit_online(
+        env,
+        n_steps=1000, 
+        n_steps_per_epoch=1000,
+        update_start_step=1000,
+    )
     
     evaluate_scorer = evaluate_on_environment(env, render=True)
     rewards = evaluate_scorer(algorithm)
