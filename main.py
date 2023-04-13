@@ -72,10 +72,11 @@ elif algorithm_name == "sac":
 else:
     algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
 
-if args.mode == "demo":
+if args.trained_model != None:
     algorithm.build_with_env(env)
     algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
 
+if args.mode == "demo":
     # step_counter = 0
     # while step_counter < 1000:
     #     observation = env.reset(seed=random.randint(0, 2**32 - 1))
@@ -103,8 +104,6 @@ if args.mode == "demo":
     rewards = evaluate_scorer(algorithm)
     sys.exit()
 elif args.mode == "dataset":
-    algorithm.build_with_env(env)
-    algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
     algorithm.collect(env, buffer, n_steps=args.steps)
     dataset = buffer.to_mdp_dataset()
@@ -132,7 +131,7 @@ elif args.mode == "play":
 
 # experience replay buffer
 buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
-explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
+explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.15)
 
 tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
 if not os.path.exists(tensorboard_log_dir):
