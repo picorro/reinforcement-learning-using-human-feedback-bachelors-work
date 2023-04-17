@@ -32,7 +32,6 @@ class Feedback:
         rewards = []
         next_states = []
         terminals = []
-        episode_terminals = []
 
         def save_data_callback(obs_t, obs_tp1, action, rew, done, info):
             states.append(obs_t)
