@@ -6,62 +6,12 @@ import pickle
 from d3rlpy.dataset import MDPDataset
 import gym
 from tkVideoPlayer import TkinterVideo
-import cv2
-import os
 import numpy as np
 from tkVideoPlayer import TkinterVideo
-import vlc
+from tkvideo import tkvideo
 from typing import List
-import sys
-import tkinter as tk
-from tkinter import ttk
-from tkinter import Canvas
-
-vlc_install_path = "C:\\Program Files\\VideoLAN\\VLC"  # Update this path according to your VLC installation path
-os.environ["VLC_PLUGIN_PATH"] = os.path.join(vlc_install_path, "plugins")
-sys.path.append(vlc_install_path)
-
-
-class VLCVideoPlayer(ttk.Frame):
-    def __init__(self, master=None, video_path=None, *args, **kwargs):
-        super().__init__(master, *args, **kwargs)
-        self.master = master
-        self.video_path = video_path
-        self.instance = vlc.Instance()
-        self.player = self.instance.media_player_new()
-        self.create_ui()
-        self.event_manager = self.player.event_manager()
-        self.event_manager.event_attach(
-            vlc.EventType.MediaPlayerEndReached, self.end_reached
-        )
-        self.event_manager.event_attach(
-            vlc.EventType.MediaPlayerTimeChanged, self.on_time_changed
-        )
-
-    def create_ui(self):
-        self.Canvas = tk.Canvas(self, bg="black", width=600, height=400)
-        self.Canvas.grid(row=0, column=0, padx=5, pady=5)
-        self.player.set_hwnd(self.Canvas.winfo_id())
-
-    def end_reached(self, event):
-        self.after(100, self.restart)
-
-    def on_time_changed(self, event):
-        length = self.player.get_length()
-        current_time = self.player.get_time()
-        if length > 0 and current_time >= length:
-            self.restart()
-
-    def restart(self):
-        self.player.stop()
-        self.player.set_time(0)
-        self.player.play()
-
-    def play(self, event=None):
-        media = self.instance.media_new(self.video_path)
-        media.get_mrl()
-        self.player.set_media(media)
-        self.player.play()
+import re
+from mkinter import *
 
 
 class Feedback:
@@ -132,34 +82,53 @@ class Feedback:
         return dataset
 
     def request_human_feedback_from_videos(videos, winWidth: int, winHeight: int):
-        win = tk.Tk()
-        win.geometry(f"{winWidth}x{winHeight}")
-        win.title("Video Player")
-        win.config(bg="black")
+        video_width = 300
+        video_height = 200
+        win = Tk()
+        win.title("Human Evaluation")
 
-        video_players: List[VLCVideoPlayer] = []
+        canvas = Canvas(win, width=winWidth, height=winHeight - 50)
+        canvas.pack()
+
+        video_players: List[tkvideo] = []
         for idx, video in enumerate(videos):
-            temp_player = VLCVideoPlayer(master=win)
-            temp_player.video_path = video
+            label = Label(win, width=video_width, height=video_height)
+            x = video_width * ((idx) % 3)
+            y = video_height * (int)(idx / 3)
+            label.place(x=x, y=y)
+            temp_player = tkvideo(
+                video, label, loop=1, size=(video_width, video_height)
+            )
             video_players.append(temp_player)
 
+        description = Label(win, text="Evaluation (example: 12345)")
+        description.pack(side=LEFT, pady=30)
+        feedback_field = Entry(win, width=40)
+        feedback_field.pack(side=LEFT, pady=30)
+        submit_button = Button(win, text="Submit")
+        submit_button.pack(side=LEFT, padx=10, pady=30)
+
+        feedback = None
+
+        def submit_feedback():
+            nonlocal feedback
+            feedback = feedback_field.get()
+            pattern = r"^(?!.*([12345]).*\1)[12345]{5}$"
+            if re.match(pattern, feedback):
+                print("Feedback submitted:", feedback)
+                win.destroy()
+            else:
+                print(
+                    "Invalid feedback. Please enter exactly 5 unique digits [12345] in your selected order."
+                )
+
+        submit_button.config(command=submit_feedback)
+
         def playVideos():
-            for idx, video_player in enumerate(video_players):
-                video_player.grid(row=idx // 3, column=idx % 3, padx=5, pady=5)
+            for video_player in video_players:
                 video_player.play()
 
         playVideos()
         win.mainloop()
 
-        # preference = -1
-
-        # # Callback function to update preference variable
-        # def set_preference(value):
-        #     nonlocal preference
-        #     preference = value
-        #     win.destroy()
-
-        # win.mainloop()
-
-        # # Return user's preference
-        # return preference
+        return feedback

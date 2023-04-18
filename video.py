@@ -58,6 +58,8 @@ class VideoMaker:
 
 class HumanFeedback:
     def requestHumanFeedbackFromVideos(videos, winWidth: int, winHeight: int):
+        video_width = 600
+        video_height = 400
         win = Tk()
 
         canvas = Canvas(win, width=winWidth, height=winHeight)
@@ -90,7 +92,7 @@ class HumanFeedback:
             temp_player.load(video)
             temp_player.pack(expand=True, fill="both")
             canvas.create_window(
-                idx * 600, 10, window=temp_player, height=400, width=600
+                0, 10, anchor="nw", window=temp_player, height=400, width=600
             )
             video_players.append(temp_player)
 
