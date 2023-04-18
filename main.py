@@ -1,5 +1,5 @@
 import d3rlpy
-from d3rlpy.datasets import get_cartpole # CartPole-v0 dataset
+from d3rlpy.datasets import get_cartpole  # CartPole-v0 dataset
 from d3rlpy.metrics.scorer import evaluate_on_environment
 from d3rlpy.metrics.scorer import td_error_scorer
 from d3rlpy.metrics.scorer import average_value_estimation_scorer
@@ -11,21 +11,21 @@ import os
 import sys
 import gym
 from feedback import Feedback
-import torch
-import random
 from intervention import get_intervention_step_array
 import numpy as np
 import pickle
+import cv2
+
 
 def str2bool(value):
     if isinstance(value, bool):
         return value
-    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+    if value.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif value.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 # print(torch.cuda.is_available())
@@ -35,18 +35,52 @@ def str2bool(value):
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 parser = argparse.ArgumentParser(description="Parsing module.")
-parser.add_argument("-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn")
-parser.add_argument("-e", "--environment", type=str, required=True, help="Environment: --CartPole-v0")
+parser.add_argument(
+    "-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn"
+)
+parser.add_argument(
+    "-e", "--environment", type=str, required=True, help="Environment: --CartPole-v0"
+)
 parser.add_argument("-m", "--mode", type=str, help="Program mode: --demo --dataset")
 parser.add_argument("-p", "--parameters", type=str, help="Parameter path")
-parser.add_argument("-s", "--steps", type=int, help="Step count for any operations the program might do related to model training or dataset generation")
-parser.add_argument("-i", "--interventions", type=int, help="How many human interventions should the algorithm execute?")
-parser.add_argument("-tm", "--trained_model", type=str, help="Trained model file name yyyy-mm-dd-HH-MM-SS")
-parser.add_argument("-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS")
-parser.add_argument("-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False)
+parser.add_argument(
+    "-s",
+    "--steps",
+    type=int,
+    help="Step count for any operations the program might do related to model training or dataset generation",
+)
+parser.add_argument(
+    "-i",
+    "--interventions",
+    type=int,
+    help="How many human interventions should the algorithm execute?",
+    default=10,
+)
+parser.add_argument(
+    "-tm",
+    "--trained_model",
+    type=str,
+    help="Trained model file name yyyy-mm-dd-HH-MM-SS",
+)
+parser.add_argument(
+    "-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS"
+)
+parser.add_argument(
+    "-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False
+)
 
 
 args = parser.parse_args()
+
+vds = [
+    "videos/trajectories/2023-04-18-12-25-19/0/0.05.mp4",
+    "videos/trajectories/2023-04-18-12-25-19/0/0.1.mp4",
+    "videos/trajectories/2023-04-18-12-25-19/0/0.2.mp4",
+    "videos/trajectories/2023-04-18-12-25-19/0/0.3.mp4",
+    "videos/trajectories/2023-04-18-12-25-19/0/0.5.mp4",
+]
+Feedback.request_human_feedback_from_videos(vds, 1800, 1000)
+sys.exit()
 
 algorithm_name = args.algorithm_name
 algorithm = None
@@ -54,8 +88,9 @@ algorithm = None
 dataset = env = None
 
 if args.dataset != None:
-    dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}")
-    #dataset = MDPDataset.load(f"./datasets/{args.dataset}")
+    print(f"./datasets/{args.dataset}")
+    dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}.pkl")
+    # dataset = MDPDataset.load(f"./datasets/{args.dataset}")
 
 if args.environment == "CartPole-v0":
     dataset, env = get_cartpole()
@@ -66,9 +101,9 @@ elif args.environment == "CarRacing-v1" or args.environment == "CarRacing-v2":
 else:
     print("Could not find environment! Exiting...")
     sys.exit()
-    
+
 if algorithm_name == "dqn":
-        algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
+    algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
 elif algorithm_name == "cql":
     algorithm = d3rlpy.algos.DiscreteCQL(use_gpu=args.gpu)
 elif algorithm_name == "sac":
@@ -96,14 +131,13 @@ if args.mode == "demo":
 
     # env.close()
 
-
     algorithm.fit_online(
         env,
-        n_steps=1000, 
+        n_steps=1000,
         n_steps_per_epoch=1000,
         update_start_step=1000,
     )
-    
+
     evaluate_scorer = evaluate_on_environment(env, render=True)
     rewards = evaluate_scorer(algorithm)
     sys.exit()
@@ -112,9 +146,9 @@ elif args.mode == "dataset":
     algorithm.collect(env, buffer, n_steps=args.steps)
     dataset = buffer.to_mdp_dataset()
 
-    pathExists = os.path.exists(f'./datasets/{algorithm_name}')
+    pathExists = os.path.exists(f"./datasets/{algorithm_name}")
     if not pathExists:
-        os.makedirs(f'datasets/{algorithm_name}')
+        os.makedirs(f"datasets/{algorithm_name}")
     dataset.dump(f"./datasets/{algorithm_name}/{start_time}.h5")
     sys.exit()
 elif args.mode == "play":
@@ -122,52 +156,52 @@ elif args.mode == "play":
     sys.exit()
 
 
-#train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+# train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
-#algorithm.build_with_dataset(dataset)
-#algorithm.build_with_env(env)
-#td_error = td_error_scorer(algorithm, test_episodes)
+# algorithm.build_with_dataset(dataset)
+# algorithm.build_with_env(env)
+# td_error = td_error_scorer(algorithm, test_episodes)
 
 # train offline
-#algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
+# algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
 
 # train online
 
 # experience replay buffer
 
-buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
-explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
+# algorithm.build_with_env(env)
+# buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
+# explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
 
-tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
-if not os.path.exists(tensorboard_log_dir):
-    os.makedirs(tensorboard_log_dir)
+# tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
+# if not os.path.exists(tensorboard_log_dir):
+#     os.makedirs(tensorboard_log_dir)
 
-algorithm.fit_online(
-    env,
-    buffer,
-    explorer,
-    n_steps=args.steps, 
-    n_steps_per_epoch=1000,
-    update_start_step=1000,
-    tensorboard_dir=tensorboard_log_dir,
-    save_interval=10
-)
+# algorithm.fit_online(
+#     env,
+#     buffer,
+#     explorer,
+#     n_steps=args.steps,
+#     n_steps_per_epoch=1000,
+#     update_start_step=1000,
+#     tensorboard_dir=tensorboard_log_dir,
+#     save_interval=10,
+# )
 
-evaluate_scorer = evaluate_on_environment(env, render=True)
-rewards = evaluate_scorer(algorithm)
+# evaluate_scorer = evaluate_on_environment(env, render=True)
+# rewards = evaluate_scorer(algorithm)
 
-# Save trained model
-pathExists = os.path.exists(f'./trained_models/{algorithm_name}')
-if not pathExists:
-    os.makedirs(f'trained_models/{algorithm_name}')
+# # Save trained model
+# pathExists = os.path.exists(f"./trained_models/{algorithm_name}")
+# if not pathExists:
+#     os.makedirs(f"trained_models/{algorithm_name}")
 
-algorithm.save_model(f'./trained_models/{algorithm_name}/{start_time}.pt')
+# algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
 
 
+# 3rd baseline algoritmas
 
-# nigos algoritmas
-
-initial_training_steps = args.steps / 10
+initial_training_steps = int(args.steps / 10)
 
 tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
 if not os.path.exists(tensorboard_log_dir):
@@ -180,8 +214,13 @@ train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 algorithm.build_with_dataset(dataset)
 td_error = td_error_scorer(algorithm, test_episodes)
 
-algorithm.fit(dataset, n_steps=initial_training_steps, n_steps_per_epoch=1000, tensorboard_dir=tensorboard_log_dir + "initialoffline")
-algorithm.save_model(f'./trained_models/{algorithm_name}/{start_time}initialoffline.pt')
+algorithm.fit(
+    dataset,
+    n_steps=initial_training_steps,
+    n_steps_per_epoch=1000,
+    tensorboard_dir=tensorboard_log_dir + "initialoffline",
+)
+algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}initialoffline.pt")
 
 # traininu online
 
@@ -192,31 +231,42 @@ algorithm.fit_online(
     env,
     buffer,
     explorer,
-    n_steps=args.steps, 
+    n_steps=1000,
     n_steps_per_epoch=1000,
     update_start_step=1000,
     tensorboard_dir=tensorboard_log_dir + "initialoffline",
-    save_interval=10
+    save_interval=10,
 )
 
-algorithm.save_model(f'./trained_models/{algorithm_name}/{start_time}initialonline.pt')
+algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}initialonline.pt")
 
-interventions = get_intervention_step_array(args.steps - initial_training_steps, args.interventions)
+interventions = get_intervention_step_array(
+    args.steps - initial_training_steps, args.interventions
+)
 interventions = np.flip(interventions)
 
 
 for idx in range(0, args.interventions):
-
     # generate trajectories
     trajectory_epsilons = [0.05, 0.1, 0.2, 0.3, 0.5]
+    video_names: str = []
 
     for epsilon in trajectory_epsilons:
-
         states = []
         actions = []
         rewards = []
         next_states = []
         terminals = []
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+        pathExists = os.path.exists(f"videos/trajectories/{start_time}/{idx}")
+        if not pathExists:
+            os.makedirs(f"videos/trajectories/{start_time}/{idx}")
+
+        video_name = f"videos/trajectories/{start_time}/{idx}/{epsilon}.mp4"
+        video = cv2.VideoWriter(video_name, fourcc, float(50), (600, 400))
+        video_names.append(video_name)
 
         observation = env.reset()
         while True:
@@ -233,33 +283,39 @@ for idx in range(0, args.interventions):
             rewards.append(reward)
             next_states.append(observation)
             terminals.append(done)
+            video.write(env.render(mode="rgb_array"))
 
-                
             if done:
                 break
-        
+
         # save dataset
 
-        pathExists = os.path.exists(f'./datasets/trajectories/{start_time}/{idx}')
+        video.release()
+
+        pathExists = os.path.exists(f"./datasets/trajectories/{start_time}/{idx}")
         if not pathExists:
-            os.makedirs(f'datasets/trajectories/{start_time}/{idx}/{epsilon}')
+            os.makedirs(f"datasets/trajectories/{start_time}/{idx}")
 
         data = {
-            'observations': np.array(states),
-            'actions': np.array(actions),
-            'rewards': np.array(rewards),
-            'next_states': np.array(next_states),
-            'terminals': np.array(terminals),
-            'discrete_action': isinstance(env.action_space, gym.spaces.Discrete)
+            "observations": np.array(states),
+            "actions": np.array(actions),
+            "rewards": np.array(rewards),
+            "next_states": np.array(next_states),
+            "terminals": np.array(terminals),
+            "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
         }
 
-        with open(f'./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl', "wb") as f:
+        with open(
+            f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
+        ) as f:
             pickle.dump(data, f)
 
+    # evaluate trajectories
+    evaluation = Feedback.request_human_feedback_from_videos(video_names, 1800, 1000)
 
-    # evaluates trajectories
-    # edits datasets based on evaluation
-    # offline training with data
-    # onling training
-    # end of loop cycle
-    # saves model
+
+# edits datasets based on evaluation
+# offline training with data
+# onling training
+# end of loop cycle
+# saves model
