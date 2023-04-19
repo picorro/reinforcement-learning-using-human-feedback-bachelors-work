@@ -16,6 +16,7 @@ import numpy as np
 import pickle
 import cv2
 import warnings
+from utils import combine_tensorboard_logs
 
 warnings.filterwarnings("ignore", message="Exception in thread*")
 warnings.filterwarnings("ignore", message=".*render method is deprecated*")
@@ -204,7 +205,7 @@ elif args.mode == "play":
 # algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
 
 
-# 3rd baseline algoritmas
+# 3rd baseline
 
 offline_training_steps = int(args.steps / 10)
 
@@ -223,7 +224,7 @@ algorithm.fit(
     dataset,
     n_steps=offline_training_steps,
     n_steps_per_epoch=1000,
-    tensorboard_dir=tensorboard_log_dir + "initialoffline",
+    tensorboard_dir=f"{tensorboard_log_dir}-offline",
 )
 algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}initialoffline.pt")
 
@@ -239,7 +240,7 @@ algorithm.fit_online(
     n_steps=1000,
     n_steps_per_epoch=1000,
     update_start_step=1000,
-    tensorboard_dir=tensorboard_log_dir + "initialoffline",
+    tensorboard_dir=f"{tensorboard_log_dir}-online",
     save_interval=10,
 )
 
@@ -396,15 +397,19 @@ for idx in range(0, args.interventions):
         f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl"
     )
 
+    # train offline
+
     algorithm.fit(
         dataset,
         n_steps=offline_training_steps,
         n_steps_per_epoch=1000,
-        tensorboard_dir=f"{tensorboard_log_dir}{str(idx)}offline",
+        tensorboard_dir=f"{tensorboard_log_dir}-offline",
     )
     algorithm.save_model(
         f"./trained_models/{algorithm_name}/{start_time}{idx}offline.pt"
     )
+
+    # train online
 
     algorithm.fit_online(
         env,
@@ -413,7 +418,7 @@ for idx in range(0, args.interventions):
         n_steps=offline_training_steps,
         n_steps_per_epoch=1000,
         update_start_step=1000,
-        tensorboard_dir=f"{tensorboard_log_dir}{str(idx)}online",
+        tensorboard_dir=f"{tensorboard_log_dir}-online",
         save_interval=10,
     )
 
@@ -422,6 +427,6 @@ for idx in range(0, args.interventions):
     )
 
 
-# onling training
-# end of loop cycle
-# saves model
+# combine online training logs
+
+combine_tensorboard_logs(f"{tensorboard_log_dir}-online/runs")
