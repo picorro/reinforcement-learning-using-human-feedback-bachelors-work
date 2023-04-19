@@ -207,14 +207,14 @@ elif args.mode == "play":
 
 # 3rd baseline
 
-offline_training_steps = int(args.steps / 10)
+offline_training_steps = int(args.steps / args.interventions)
 
 tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
 if not os.path.exists(tensorboard_log_dir):
     os.makedirs(tensorboard_log_dir)
 
 
-# patraininu offline
+# initial offline
 train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
 algorithm.build_with_dataset(dataset)
@@ -226,9 +226,11 @@ algorithm.fit(
     n_steps_per_epoch=1000,
     tensorboard_dir=f"{tensorboard_log_dir}-offline",
 )
-algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}initialoffline.pt")
+algorithm.save_model(
+    f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt"
+)
 
-# traininu online
+# initial online
 
 buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
 explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
@@ -244,7 +246,7 @@ algorithm.fit_online(
     save_interval=10,
 )
 
-algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}initialonline.pt")
+algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt")
 
 interventions = get_intervention_step_array(
     args.steps - offline_training_steps, args.interventions
@@ -270,6 +272,7 @@ worst_extra_reward = -5
 
 for idx in range(0, args.interventions):
     # generate trajectories
+
     trajectory_epsilons = [0.05, 0.1, 0.2, 0.3, 0.5]
     video_names: str = []
 
