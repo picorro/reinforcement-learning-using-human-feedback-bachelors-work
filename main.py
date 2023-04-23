@@ -18,7 +18,6 @@ import pickle
 import cv2
 import warnings
 from utils import combine_tensorboard_logs
-from d4rl_atari.envs import AtariEnv
 
 warnings.filterwarnings("ignore", message="Exception in thread*")
 warnings.filterwarnings("ignore", message=".*render method is deprecated*")
@@ -38,8 +37,6 @@ def str2bool(value):
 # print(torch.cuda.is_available())
 # print(torch.cuda.device_count())
 
-
-start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 parser = argparse.ArgumentParser(description="Parsing module.")
 parser.add_argument(
@@ -75,9 +72,12 @@ parser.add_argument(
 parser.add_argument(
     "-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False
 )
+parser.add_argument("-nm", "--name", type=str, help="Name", default="")
 
 
 args = parser.parse_args()
+
+start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + args.name
 
 vds = [
     "videos/trajectories/2023-04-18-12-25-19/0/0.05.mp4",
@@ -108,10 +108,6 @@ elif args.environment == "LunarLander-v2":
     env = gym.make("LunarLander-v2")
 elif args.environment == "CarRacing-v1" or args.environment == "CarRacing-v2":
     env = gym.make("CarRacing-v2")
-elif args.environment == "breakout":
-    env = AtariEnv(
-        "Breakout", stack=False, clip_reward=True, terminate_on_life_loss=True
-    )
 else:
     print("Could not find environment! Exiting...")
     sys.exit()
@@ -132,7 +128,7 @@ elif algorithm_name == "cql":
 elif algorithm_name == "cqlcontinuous":
     algorithm = d3rlpy.algos.CQL(use_gpu=args.gpu)
 elif algorithm_name == "sac":
-    algorithm = d3rlpy.algos.DiscreteSAC(scaler="pixel", n_frames=4, use_gpu=args.gpu)
+    algorithm = d3rlpy.algos.DiscreteSAC(use_gpu=args.gpu)
 elif algorithm_name == "saccontinuous":
     algorithm = d3rlpy.algos.SAC(use_gpu=args.gpu)
 elif algorithm_name == "nfq":
@@ -180,7 +176,6 @@ if args.mode == "demo":
 
     evaluate_scorer = evaluate_on_environment(env, render=True)
     rewards = evaluate_scorer(algorithm)
-    print(rewards)
     sys.exit()
 elif args.mode == "dataset":
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
@@ -220,18 +215,15 @@ tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
 if not os.path.exists(tensorboard_log_dir):
     os.makedirs(tensorboard_log_dir)
 
-eval_env = AtariEnv(
-    "Breakout", stack=False, clip_reward=False, terminate_on_life_loss=False
-)
-
 algorithm.fit_online(
+    env,
     buffer,
-    eval_env=eval_env,
-    eval_epsilon=0.01,
+    explorer,
     n_steps=args.steps,
-    n_steps_per_epoch=10000,
+    n_steps_per_epoch=1000,
+    update_start_step=1000,
+    tensorboard_dir=tensorboard_log_dir,
     update_interval=4,
-    update_start_step=20000,
 )
 
 evaluate_scorer = evaluate_on_environment(env, render=True)
