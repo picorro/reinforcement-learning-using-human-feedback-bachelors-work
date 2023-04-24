@@ -223,7 +223,7 @@ algorithm.fit_online(
     n_steps_per_epoch=1000,
     update_start_step=1000,
     tensorboard_dir=tensorboard_log_dir,
-    update_interval=4,
+    # update_interval=4,
 )
 
 evaluate_scorer = evaluate_on_environment(env, render=True)

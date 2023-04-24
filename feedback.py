@@ -15,7 +15,7 @@ from mkinter import *
 
 
 class Feedback:
-    def playEnv(self, env, recording_name="", record=False):
+    def playEnv(env, recording_name="", record=False):
         key_to_action = {}
 
         if env.spec.id == "CartPole-v0" or env.spec.id == "CartPole-v1":
