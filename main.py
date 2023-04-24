@@ -40,10 +40,14 @@ def str2bool(value):
 
 parser = argparse.ArgumentParser(description="Parsing module.")
 parser.add_argument(
-    "-a", "--algorithm_name", type=str, required=True, help="Algorithm: --dqn"
+    "-a", "--algorithm_name", type=str, default="no_algorithm", help="Algorithm: --dqn"
 )
 parser.add_argument(
-    "-e", "--environment", type=str, required=True, help="Environment: --CartPole-v0"
+    "-e",
+    "--environment",
+    type=str,
+    required=True,
+    help="Environment: --CartPole-v0 --LunarLander-v2",
 )
 parser.add_argument("-m", "--mode", type=str, help="Program mode: --demo --dataset")
 parser.add_argument("-p", "--parameters", type=str, help="Parameter path")
