@@ -190,6 +190,39 @@ elif args.mode == "dataset":
 elif args.mode == "play":
     Feedback.playEnv(env, recording_name=start_time, record=True)
     sys.exit()
+elif args.mode == "baseline1":
+    # Prepare environment
+    algorithm.build_with_env(env)
+    # Replay buffer
+    buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
+    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
+        start_epsilon=1.0, end_epsilon=0.1, duration=1000000
+    )
+
+    tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
+    if not os.path.exists(tensorboard_log_dir):
+        os.makedirs(tensorboard_log_dir)
+
+    algorithm.fit_online(
+        env,
+        buffer,
+        explorer,
+        n_steps=args.steps,
+        n_steps_per_epoch=1000,
+        update_start_step=1000,
+        tensorboard_dir=tensorboard_log_dir,
+    )
+
+    # Show a replay using fully trained model
+    evaluate_scorer = evaluate_on_environment(env, render=True)
+    rewards = evaluate_scorer(algorithm)
+
+    # Save trained model
+    pathExists = os.path.exists(f"./trained_models/{algorithm_name}")
+    if not pathExists:
+        os.makedirs(f"trained_models/{algorithm_name}")
+
+    algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
 
 
 # train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
@@ -200,41 +233,6 @@ elif args.mode == "play":
 
 # train offline
 # algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
-
-# train online
-
-# experience replay buffer
-
-algorithm.build_with_env(env)
-buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
-explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
-    start_epsilon=1.0, end_epsilon=0.1, duration=1000000
-)
-
-tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
-if not os.path.exists(tensorboard_log_dir):
-    os.makedirs(tensorboard_log_dir)
-
-algorithm.fit_online(
-    env,
-    buffer,
-    explorer,
-    n_steps=args.steps,
-    n_steps_per_epoch=1000,
-    update_start_step=1000,
-    tensorboard_dir=tensorboard_log_dir,
-    # update_interval=4,
-)
-
-evaluate_scorer = evaluate_on_environment(env, render=True)
-rewards = evaluate_scorer(algorithm)
-
-# Save trained model
-pathExists = os.path.exists(f"./trained_models/{algorithm_name}")
-if not pathExists:
-    os.makedirs(f"trained_models/{algorithm_name}")
-
-algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
 
 
 # # 3rd baseline
