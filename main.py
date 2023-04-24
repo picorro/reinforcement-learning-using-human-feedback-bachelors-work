@@ -19,11 +19,12 @@ import cv2
 import warnings
 from utils import combine_tensorboard_logs
 
+# Ignore some warnings that stem from Tkinter library
 warnings.filterwarnings("ignore", message="Exception in thread*")
 warnings.filterwarnings("ignore", message=".*render method is deprecated*")
 
 
-def str2bool(value):
+def str2bool(value) -> bool:
     if isinstance(value, bool):
         return value
     if value.lower() in ("yes", "true", "t", "y", "1"):
@@ -34,10 +35,7 @@ def str2bool(value):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-# print(torch.cuda.is_available())
-# print(torch.cuda.device_count())
-
-
+# Argument Parsing
 parser = argparse.ArgumentParser(description="Parsing module.")
 parser.add_argument(
     "-a", "--algorithm_name", type=str, default="no_algorithm", help="Algorithm: --dqn"
@@ -83,13 +81,13 @@ args = parser.parse_args()
 
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + args.name
 
-vds = [
-    "videos/trajectories/2023-04-18-12-25-19/0/0.05.mp4",
-    "videos/trajectories/2023-04-18-12-25-19/0/0.1.mp4",
-    "videos/trajectories/2023-04-18-12-25-19/0/0.2.mp4",
-    "videos/trajectories/2023-04-18-12-25-19/0/0.3.mp4",
-    "videos/trajectories/2023-04-18-12-25-19/0/0.5.mp4",
-]
+# vds = [
+#     "videos/trajectories/2023-04-18-12-25-19/0/0.05.mp4",
+#     "videos/trajectories/2023-04-18-12-25-19/0/0.1.mp4",
+#     "videos/trajectories/2023-04-18-12-25-19/0/0.2.mp4",
+#     "videos/trajectories/2023-04-18-12-25-19/0/0.3.mp4",
+#     "videos/trajectories/2023-04-18-12-25-19/0/0.5.mp4",
+# ]
 # feedback = Feedback.request_human_feedback_from_videos(vds, 900, 450)
 # print(feedback)
 # sys.exit()
@@ -149,28 +147,13 @@ elif algorithm_name == "td3plusbc":
         scaler=MinMaxScaler(),
     )
 else:
-    algorithm = d3rlpy.algos.DQN(use_gpu=args.gpu)
+    algorithm = None
 
 if args.trained_model != None:
     algorithm.build_with_env(env)
     algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
 
 if args.mode == "demo":
-    # step_counter = 0
-    # while step_counter < 1000:
-    #     observation = env.reset(seed=random.randint(0, 2**32 - 1))
-
-    #     while True:
-    #         env.render()
-    #         action = env.action_space.sample()
-    #         observation, reward, done, info = env.step(action)
-
-    #         step_counter += 1
-    #         if done or step_counter >= 1000:
-    #             break
-
-    # env.close()
-
     algorithm.fit_online(
         env,
         n_steps=1000,
@@ -181,6 +164,7 @@ if args.mode == "demo":
     evaluate_scorer = evaluate_on_environment(env, render=True)
     rewards = evaluate_scorer(algorithm)
     sys.exit()
+
 elif args.mode == "dataset":
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
     algorithm.collect(env, buffer, n_steps=args.steps)
@@ -191,9 +175,11 @@ elif args.mode == "dataset":
         os.makedirs(f"datasets/{algorithm_name}")
     dataset.dump(f"./datasets/{algorithm_name}/{start_time}.h5")
     sys.exit()
+
 elif args.mode == "play":
     Feedback.playEnv(env, recording_name=start_time, record=True)
     sys.exit()
+
 elif args.mode == "baseline1":
     # Prepare environment
     algorithm.build_with_env(env)
@@ -227,6 +213,7 @@ elif args.mode == "baseline1":
         os.makedirs(f"trained_models/{algorithm_name}")
 
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
+    sys.exit()
 
 
 # train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
