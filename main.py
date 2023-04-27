@@ -263,258 +263,238 @@ elif args.mode == "baseline2":
 
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
     sys.exit()
-# elif args.mode == "baseline3":
+elif args.mode == "baseline3":
+    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
-# train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+    algorithm.build_with_dataset(dataset)
+    algorithm.build_with_env(env)
+    td_error = td_error_scorer(algorithm, test_episodes)
 
-# algorithm.build_with_dataset(dataset)
-# algorithm.build_with_env(env)
-# td_error = td_error_scorer(algorithm, test_episodes)
+    # Train offline
+    algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
 
-# train offline
-# algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
+    # 3rd baseline
 
+    offline_training_steps = int(args.steps / args.interventions)
 
-# # 3rd baseline
+    tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
+    if not os.path.exists(tensorboard_log_dir):
+        os.makedirs(tensorboard_log_dir)
 
-# offline_training_steps = int(args.steps / args.interventions)
+    # Initial offline
+    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
-# tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
-# if not os.path.exists(tensorboard_log_dir):
-#     os.makedirs(tensorboard_log_dir)
+    algorithm.build_with_dataset(dataset)
+    td_error = td_error_scorer(algorithm, test_episodes)
 
+    algorithm.fit(
+        dataset,
+        n_steps=offline_training_steps,
+        n_steps_per_epoch=1000,
+        tensorboard_dir=f"{tensorboard_log_dir}-offline",
+    )
+    algorithm.save_model(
+        f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt"
+    )
 
-# # initial offline
-# train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+    # Initial online
 
-# algorithm.build_with_dataset(dataset)
-# td_error = td_error_scorer(algorithm, test_episodes)
+    buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
+    explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
 
-# algorithm.fit(
-#     dataset,
-#     n_steps=offline_training_steps,
-#     n_steps_per_epoch=1000,
-#     tensorboard_dir=f"{tensorboard_log_dir}-offline",
-# )
-# algorithm.save_model(
-#     f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt"
-# )
+    algorithm.fit_online(
+        env,
+        buffer,
+        explorer,
+        n_steps=1000,
+        n_steps_per_epoch=1000,
+        update_start_step=1000,
+        tensorboard_dir=f"{tensorboard_log_dir}-online",
+        save_interval=10,
+    )
 
-# # initial online
+    algorithm.save_model(
+        f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt"
+    )
 
-# buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
-# explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
+    interventions = get_intervention_step_array(
+        args.steps - offline_training_steps, args.interventions
+    )
+    interventions = np.flip(interventions)
 
-# algorithm.fit_online(
-#     env,
-#     buffer,
-#     explorer,
-#     n_steps=1000,
-#     n_steps_per_epoch=1000,
-#     update_start_step=1000,
-#     tensorboard_dir=f"{tensorboard_log_dir}-online",
-#     save_interval=10,
-# )
+    def update_rewards(rewards, feedback, best_reward, worst_reward):
+        feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
 
-# algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt")
+        for rank, idx in feedback_dict.items():
+            reward_modification = (
+                best_reward - (rank - 1) * (best_reward - worst_reward) / 2
+            )
+            rewards[idx] += reward_modification
 
-# interventions = get_intervention_step_array(
-#     args.steps - offline_training_steps, args.interventions
-# )
-# interventions = np.flip(interventions)
+        return rewards
 
+    best_extra_reward = 5
+    worst_extra_reward = -5
 
-# def update_rewards(rewards, feedback, best_reward, worst_reward):
-#     feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
+    for idx in range(0, args.interventions):
+        # Generate trajectories
 
-#     for rank, idx in feedback_dict.items():
-#         reward_modification = (
-#             best_reward - (rank - 1) * (best_reward - worst_reward) / 2
-#         )
-#         rewards[idx] += reward_modification
+        trajectory_epsilons = [0.05, 0.1, 0.2, 0.3, 0.5]
+        video_names: str = []
 
-#     return rewards
+        for epsilon in trajectory_epsilons:
+            states = []
+            actions = []
+            rewards = []
+            next_states = []
+            terminals = []
 
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
-# best_extra_reward = 5
-# worst_extra_reward = -5
+            pathExists = os.path.exists(f"videos/trajectories/{start_time}/{idx}")
+            if not pathExists:
+                os.makedirs(f"videos/trajectories/{start_time}/{idx}")
 
+            video_name = f"videos/trajectories/{start_time}/{idx}/{epsilon}.mp4"
+            video = cv2.VideoWriter(video_name, fourcc, float(50), (600, 400))
+            video_names.append(video_name)
 
-# for idx in range(0, args.interventions):
-#     # generate trajectories
+            observation = env.reset()
+            while True:
+                if np.random.random() < epsilon:
+                    action = env.action_space.sample()
+                else:
+                    action = algorithm.predict([observation])[0]
 
-#     trajectory_epsilons = [0.05, 0.1, 0.2, 0.3, 0.5]
-#     video_names: str = []
+                states.append(observation)
+                actions.append(action)
 
-#     for epsilon in trajectory_epsilons:
-#         states = []
-#         actions = []
-#         rewards = []
-#         next_states = []
-#         terminals = []
+                observation, reward, done, info = env.step(action)
 
-#         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                rewards.append(reward)
+                next_states.append(observation)
+                terminals.append(done)
+                video.write(env.render(mode="rgb_array"))
 
-#         pathExists = os.path.exists(f"videos/trajectories/{start_time}/{idx}")
-#         if not pathExists:
-#             os.makedirs(f"videos/trajectories/{start_time}/{idx}")
+                if done:
+                    break
 
-#         video_name = f"videos/trajectories/{start_time}/{idx}/{epsilon}.mp4"
-#         video = cv2.VideoWriter(video_name, fourcc, float(50), (600, 400))
-#         video_names.append(video_name)
+            # Save dataset
 
-#         observation = env.reset()
-#         while True:
-#             if np.random.random() < epsilon:
-#                 action = env.action_space.sample()
-#             else:
-#                 action = algorithm.predict([observation])[0]
+            video.release()
 
-#             states.append(observation)
-#             actions.append(action)
+            pathExists = os.path.exists(f"./datasets/trajectories/{start_time}/{idx}")
+            if not pathExists:
+                os.makedirs(f"datasets/trajectories/{start_time}/{idx}")
 
-#             observation, reward, done, info = env.step(action)
+            data = {
+                "observations": np.array(states),
+                "actions": np.array(actions),
+                "rewards": np.array(rewards),
+                "next_states": np.array(next_states),
+                "terminals": np.array(terminals),
+                "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
+            }
 
-#             rewards.append(reward)
-#             next_states.append(observation)
-#             terminals.append(done)
-#             video.write(env.render(mode="rgb_array"))
+            with open(
+                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
+            ) as f:
+                pickle.dump(data, f)
 
-#             if done:
-#                 break
+        # Evaluate trajectories
+        feedback = Feedback.request_human_feedback_from_videos(video_names, 900, 450)
+        if feedback is None:
+            print(
+                f"The window has exited without returning feedback! Ignoring the evaluation. Continuing the algorithm."
+            )
 
-#         # save dataset
+        # Edit datasets based on evaluation
+        for i, video_name in enumerate(video_names):
+            epsilon = trajectory_epsilons[i]
 
-#         video.release()
+            with open(
+                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
+            ) as f:
+                data = pickle.load(f)
 
-#         pathExists = os.path.exists(f"./datasets/trajectories/{start_time}/{idx}")
-#         if not pathExists:
-#             os.makedirs(f"datasets/trajectories/{start_time}/{idx}")
+            print(f"Fields in the pickle file (epsilon {epsilon}):", data.keys())
+            # Update the "rewards" based on human feedback
+            updated_rewards = update_rewards(
+                data["rewards"], feedback, best_extra_reward, worst_extra_reward
+            )
+            # Save the modified "rewards" to the pickle file
+            data["rewards"] = updated_rewards
+            with open(
+                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
+            ) as f:
+                pickle.dump(data, f)
 
-#         data = {
-#             "observations": np.array(states),
-#             "actions": np.array(actions),
-#             "rewards": np.array(rewards),
-#             "next_states": np.array(next_states),
-#             "terminals": np.array(terminals),
-#             "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
-#         }
+        # Offline training with data
 
-#         with open(
-#             f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
-#         ) as f:
-#             pickle.dump(data, f)
+        dataset_folder = f"./datasets/trajectories/{start_time}/{idx}"
 
-#     # evaluate trajectories
-#     feedback = Feedback.request_human_feedback_from_videos(video_names, 900, 450)
-#     if feedback is None:
-#         print(
-#             f"The window has exited without returning feedback! Ignoring the evaluation. Continuing the algorithm."
-#         )
+        combined_data = {
+            "observations": [],
+            "actions": [],
+            "rewards": [],
+            "next_states": [],
+            "terminals": [],
+            "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
+        }
 
-#     # edit datasets based on evaluation
-#     for i, video_name in enumerate(video_names):
-#         epsilon = trajectory_epsilons[i]
+        for epsilon in trajectory_epsilons:
+            with open(
+                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
+            ) as f:
+                data = pickle.load(f)
+                combined_data["observations"].extend(data["observations"])
+                combined_data["actions"].extend(data["actions"])
+                combined_data["rewards"].extend(data["rewards"])
+                combined_data["next_states"].extend(data["next_states"])
+                combined_data["terminals"].extend(data["terminals"])
 
-#         with open(
-#             f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
-#         ) as f:
-#             data = pickle.load(f)
+        # Convert the lists to numpy arrays
+        for key in ["observations", "actions", "rewards", "next_states", "terminals"]:
+            combined_data[key] = np.array(combined_data[key])
 
-#         print(f"Fields in the pickle file (epsilon {epsilon}):", data.keys())
-#         # Update the "rewards" based on human feedback
-#         updated_rewards = update_rewards(
-#             data["rewards"], feedback, best_extra_reward, worst_extra_reward
-#         )
-#         # Save the modified "rewards" to the pickle file
-#         data["rewards"] = updated_rewards
-#         with open(
-#             f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
-#         ) as f:
-#             pickle.dump(data, f)
+        with open(
+            f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl", "wb"
+        ) as f:
+            pickle.dump(combined_data, f)
 
-#     # offline training with data
+        combined_dataset = Feedback.load_dataset_from_pickle(
+            f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl"
+        )
 
-#     dataset_folder = f"./datasets/trajectories/{start_time}/{idx}"
+        # Train offline
 
-#     combined_data = {
-#         "observations": [],
-#         "actions": [],
-#         "rewards": [],
-#         "next_states": [],
-#         "terminals": [],
-#         "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
-#     }
+        algorithm.fit(
+            dataset,
+            n_steps=offline_training_steps,
+            n_steps_per_epoch=1000,
+            tensorboard_dir=f"{tensorboard_log_dir}-offline",
+        )
+        algorithm.save_model(
+            f"./trained_models/{algorithm_name}/{start_time}{idx}offline.pt"
+        )
 
-#     for epsilon in trajectory_epsilons:
-#         with open(
-#             f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
-#         ) as f:
-#             data = pickle.load(f)
-#             combined_data["observations"].extend(data["observations"])
-#             combined_data["actions"].extend(data["actions"])
-#             combined_data["rewards"].extend(data["rewards"])
-#             combined_data["next_states"].extend(data["next_states"])
-#             combined_data["terminals"].extend(data["terminals"])
+        # Train online
 
-#     # Convert the lists to numpy arrays
-#     for key in ["observations", "actions", "rewards", "next_states", "terminals"]:
-#         combined_data[key] = np.array(combined_data[key])
+        algorithm.fit_online(
+            env,
+            buffer,
+            explorer,
+            n_steps=offline_training_steps,
+            n_steps_per_epoch=1000,
+            update_start_step=1000,
+            tensorboard_dir=f"{tensorboard_log_dir}-online",
+            save_interval=10,
+        )
 
-#     with open(
-#         f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl", "wb"
-#     ) as f:
-#         pickle.dump(combined_data, f)
+        algorithm.save_model(
+            f"./trained_models/{algorithm_name}/{start_time}{idx}online.pt"
+        )
 
-#     combined_dataset = Feedback.load_dataset_from_pickle(
-#         f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl"
-#     )
+    # Combine online training logs
 
-#     # train offline
-
-#     algorithm.fit(
-#         dataset,
-#         n_steps=offline_training_steps,
-#         n_steps_per_epoch=1000,
-#         tensorboard_dir=f"{tensorboard_log_dir}-offline",
-#     )
-#     algorithm.save_model(
-#         f"./trained_models/{algorithm_name}/{start_time}{idx}offline.pt"
-#     )
-
-#     # train online
-
-#     algorithm.fit_online(
-#         env,
-#         buffer,
-#         explorer,
-#         n_steps=offline_training_steps,
-#         n_steps_per_epoch=1000,
-#         update_start_step=1000,
-#         tensorboard_dir=f"{tensorboard_log_dir}-online",
-#         save_interval=10,
-#     )
-
-#     algorithm.save_model(
-#         f"./trained_models/{algorithm_name}/{start_time}{idx}online.pt"
-#     )
-
-
-# # combine online training logs
-
-# combine_tensorboard_logs(f"{tensorboard_log_dir}-online/runs")
-
-# # anything else that might need to be done
-
-# 0.3 epsilon batch size changed
-# 0.15 epsilon
-# 0.5 epsilon -> 0.05 linear decay
-# 0.75 epsilon -> 0.01 linear decay
-# nfq default linear decay
-# nfq constant 0.3
-# ddqn constant 0.3
-# dqqn linear decay default
-
-# ddqn constant 0.1
-# ddqn constant 0.3
-# ddqn constant 0.5
+    combine_tensorboard_logs(f"{tensorboard_log_dir}-online/runs")
