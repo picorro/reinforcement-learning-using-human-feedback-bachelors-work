@@ -154,6 +154,7 @@ if args.trained_model != None:
     algorithm.load_model(f"./trained_models/{algorithm_name}/{args.trained_model}.pt")
 
 if args.mode == "demo":
+    # Workaround to load the network parameters properly, since loading the model is not enough
     algorithm.fit_online(
         env,
         n_steps=1000,
@@ -215,6 +216,54 @@ elif args.mode == "baseline1":
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
     sys.exit()
 
+elif args.mode == "baseline2":
+    tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
+    if not os.path.exists(tensorboard_log_dir):
+        os.makedirs(tensorboard_log_dir)
+
+    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+
+    algorithm.build_with_dataset(dataset)
+    algorithm.build_with_env(env)
+    td_error = td_error_scorer(algorithm, test_episodes)
+
+    # train offline
+    algorithm.fit(
+        dataset,
+        n_steps=int(2000000),
+        n_steps_per_epoch=1000,
+        tensorboard_dir=tensorboard_log_dir + "-initialoffline",
+    )
+
+    # Prepare environment
+    # Replay buffer
+    buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
+    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
+        start_epsilon=0.7, end_epsilon=0.1, duration=1000000
+    )
+
+    algorithm.fit_online(
+        env,
+        buffer,
+        explorer,
+        n_steps=args.steps,
+        n_steps_per_epoch=1000,
+        update_start_step=1000,
+        tensorboard_dir=tensorboard_log_dir,
+    )
+
+    # Show a replay using fully trained model
+    evaluate_scorer = evaluate_on_environment(env, render=True)
+    rewards = evaluate_scorer(algorithm)
+
+    # Save trained model
+    pathExists = os.path.exists(f"./trained_models/{algorithm_name}")
+    if not pathExists:
+        os.makedirs(f"trained_models/{algorithm_name}")
+
+    algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
+    sys.exit()
+# elif args.mode == "baseline3":
 
 # train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
