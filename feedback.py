@@ -67,9 +67,29 @@ class Feedback:
             with open(f"./datasets/play/{env.spec.id}/{recording_name}.pkl", "wb") as f:
                 pickle.dump(data, f)
 
-    def load_dataset_from_pickle(file_path):
-        with open(file_path, "rb") as f:
+    def load_dataset_from_pickle(new_data_path, previous_data_path=None):
+        with open(new_data_path, "rb") as f:
             data = pickle.load(f)
+
+        if previous_data_path:
+            with open(previous_data_path, "rb") as f:
+                previous_data = pickle.load(f)
+
+            data["observations"] = np.concatenate(
+                (previous_data["observations"], data["observations"])
+            )
+            data["actions"] = np.concatenate(
+                (previous_data["actions"], data["actions"])
+            )
+            data["rewards"] = np.concatenate(
+                (previous_data["rewards"], data["rewards"])
+            )
+            data["terminals"] = np.concatenate(
+                (previous_data["terminals"], data["terminals"])
+            )
+            data["discrete_action"] = (
+                data["discrete_action"] and previous_data["discrete_action"]
+            )
 
         dataset = MDPDataset(
             observations=data["observations"],

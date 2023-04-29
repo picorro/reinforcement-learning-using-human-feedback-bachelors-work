@@ -8,3 +8,5 @@ __pycache__
 *.pyc
 /videos/*
 /.history/*
+/averaged_logs/*
+/exported_data/*

@@ -12,7 +12,7 @@ import os
 import sys
 import gym
 from feedback import Feedback
-from intervention import get_intervention_step_array
+from intervention import generate_step_counts, generate_epsilon_values
 import numpy as np
 import pickle
 import cv2
@@ -76,21 +76,9 @@ parser.add_argument(
 )
 parser.add_argument("-nm", "--name", type=str, help="Name", default="")
 
-
 args = parser.parse_args()
 
 start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + args.name
-
-# vds = [
-#     "videos/trajectories/2023-04-18-12-25-19/0/0.05.mp4",
-#     "videos/trajectories/2023-04-18-12-25-19/0/0.1.mp4",
-#     "videos/trajectories/2023-04-18-12-25-19/0/0.2.mp4",
-#     "videos/trajectories/2023-04-18-12-25-19/0/0.3.mp4",
-#     "videos/trajectories/2023-04-18-12-25-19/0/0.5.mp4",
-# ]
-# feedback = Feedback.request_human_feedback_from_videos(vds, 900, 450)
-# print(feedback)
-# sys.exit()
 
 algorithm_name = args.algorithm_name
 algorithm = None
@@ -100,7 +88,6 @@ dataset = env = None
 if args.dataset != None:
     print(f"./datasets/{args.dataset}")
     dataset = Feedback.load_dataset_from_pickle(f"./datasets/{args.dataset}.pkl")
-    # dataset = MDPDataset.load(f"./datasets/{args.dataset}")
 
 if args.environment == "CartPole-v0":
     dataset, env = get_cartpole()
@@ -224,7 +211,6 @@ elif args.mode == "baseline2":
     train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
     algorithm.build_with_dataset(dataset)
-    algorithm.build_with_env(env)
     td_error = td_error_scorer(algorithm, test_episodes)
 
     # train offline
@@ -264,63 +250,71 @@ elif args.mode == "baseline2":
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
     sys.exit()
 elif args.mode == "baseline3":
-    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
-
-    algorithm.build_with_dataset(dataset)
-    algorithm.build_with_env(env)
-    td_error = td_error_scorer(algorithm, test_episodes)
-
-    # Train offline
-    algorithm.fit(dataset, n_steps=args.steps, n_steps_per_epoch=1000)
-
-    # 3rd baseline
-
-    offline_training_steps = int(args.steps / args.interventions)
+    # Parameters
+    min_epsilon = 0.05
+    max_epsilon = 0.7
 
     tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
     if not os.path.exists(tensorboard_log_dir):
         os.makedirs(tensorboard_log_dir)
 
-    # Initial offline
     train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
 
     algorithm.build_with_dataset(dataset)
     td_error = td_error_scorer(algorithm, test_episodes)
 
+    # Initial offline
     algorithm.fit(
         dataset,
-        n_steps=offline_training_steps,
+        n_steps=int(args.steps / 5),
         n_steps_per_epoch=1000,
-        tensorboard_dir=f"{tensorboard_log_dir}-offline",
+        tensorboard_dir=tensorboard_log_dir + "-initialoffline",
     )
+
     algorithm.save_model(
         f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt"
     )
 
     # Initial online
 
-    buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=args.steps, env=env)
-    explorer = d3rlpy.online.explorers.ConstantEpsilonGreedy(0.3)
+    epsilons = generate_epsilon_values(
+        args.interventions + 1, max_epsilon, min_epsilon, steepness=1.5
+    )
+    intervention_steps = generate_step_counts(
+        args.steps, args.interventions + 1, steepness=1.5
+    )
+
+    buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
+    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
+        start_epsilon=epsilons[0],
+        end_epsilon=epsilons[1],
+        duration=intervention_steps[0],
+    )
+    try:
+        epsilons = np.delete(epsilons, 0)
+    except:
+        print("Intervention or Step parameters seem to be wrong!")
 
     algorithm.fit_online(
         env,
         buffer,
         explorer,
-        n_steps=1000,
+        n_steps=int(intervention_steps[0]),
         n_steps_per_epoch=1000,
         update_start_step=1000,
-        tensorboard_dir=f"{tensorboard_log_dir}-online",
-        save_interval=10,
+        tensorboard_dir=f"{tensorboard_log_dir}-initialonline",
     )
+
+    try:
+        intervention_steps = np.delete(intervention_steps, 0)
+    except:
+        print("Intervention or Step parameters seem to be wrong!")
 
     algorithm.save_model(
         f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt"
     )
 
-    interventions = get_intervention_step_array(
-        args.steps - offline_training_steps, args.interventions
-    )
-    interventions = np.flip(interventions)
+    offline_training_steps = int(args.steps / 10)
 
     def update_rewards(rewards, feedback, best_reward, worst_reward):
         feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
@@ -336,11 +330,21 @@ elif args.mode == "baseline3":
     best_extra_reward = 5
     worst_extra_reward = -5
 
+    # human_feecback_loop_tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}/human-feedback-loop"
+    # if not os.path.exists(human_feecback_loop_tensorboard_log_dir):
+    #     os.makedirs(human_feecback_loop_tensorboard_log_dir)
+
     for idx in range(0, args.interventions):
+        print(
+            f"RLHF Loop index: {idx + 1}. Current epsilon: {epsilons[0]}, Current online training steps: {intervention_steps[0]}"
+        )
+
         # Generate trajectories
 
         trajectory_epsilons = [0.05, 0.1, 0.2, 0.3, 0.5]
         video_names: str = []
+
+        print("Generating evaluation videos.")
 
         for epsilon in trajectory_epsilons:
             states = []
@@ -417,7 +421,6 @@ elif args.mode == "baseline3":
             ) as f:
                 data = pickle.load(f)
 
-            print(f"Fields in the pickle file (epsilon {epsilon}):", data.keys())
             # Update the "rewards" based on human feedback
             updated_rewards = update_rewards(
                 data["rewards"], feedback, best_extra_reward, worst_extra_reward
@@ -454,6 +457,7 @@ elif args.mode == "baseline3":
                 combined_data["terminals"].extend(data["terminals"])
 
         # Convert the lists to numpy arrays
+
         for key in ["observations", "actions", "rewards", "next_states", "terminals"]:
             combined_data[key] = np.array(combined_data[key])
 
@@ -462,12 +466,13 @@ elif args.mode == "baseline3":
         ) as f:
             pickle.dump(combined_data, f)
 
-        combined_dataset = Feedback.load_dataset_from_pickle(
-            f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl"
+        dataset = Feedback.load_dataset_from_pickle(
+            f"./datasets/{args.dataset}.pkl",
+            f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl",
         )
 
         # Train offline
-
+        print("Training offline...")
         algorithm.fit(
             dataset,
             n_steps=offline_training_steps,
@@ -479,17 +484,31 @@ elif args.mode == "baseline3":
         )
 
         # Train online
-
+        buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
+        if len(epsilons) == 1:
+            epsilons = np.append(epsilons, min_epsilon)
+        explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
+            start_epsilon=epsilons[0],
+            end_epsilon=epsilons[1],
+            duration=intervention_steps[0],
+        )
+        print("Training offline...")
         algorithm.fit_online(
             env,
             buffer,
             explorer,
-            n_steps=offline_training_steps,
+            n_steps=intervention_steps[0],
             n_steps_per_epoch=1000,
             update_start_step=1000,
             tensorboard_dir=f"{tensorboard_log_dir}-online",
             save_interval=10,
         )
+
+        try:
+            epsilons = np.delete(epsilons, 0)
+            intervention_steps = np.delete(intervention_steps, 0)
+        except:
+            print("Last Cycle. Saving model and quitting!")
 
         algorithm.save_model(
             f"./trained_models/{algorithm_name}/{start_time}{idx}online.pt"
