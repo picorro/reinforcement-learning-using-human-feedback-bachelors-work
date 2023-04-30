@@ -327,8 +327,24 @@ elif args.mode == "baseline3":
 
         return rewards
 
-    best_extra_reward = 5
-    worst_extra_reward = -5
+    def update_last_reward(rewards, feedback, best_reward, worst_reward):
+        feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
+
+        # Find the last element in the rewards list
+        last_element_idx = len(rewards) - 1
+
+        # Check if the last element has a rank in the feedback_dict
+        for rank, idx in feedback_dict.items():
+            if idx == last_element_idx:
+                reward_modification = (
+                    best_reward - (rank - 1) * (best_reward - worst_reward) / 2
+                )
+                rewards[idx] += reward_modification
+
+        return rewards
+
+    best_extra_reward = 100
+    worst_extra_reward = -100
 
     # human_feecback_loop_tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}/human-feedback-loop"
     # if not os.path.exists(human_feecback_loop_tensorboard_log_dir):
