@@ -278,7 +278,7 @@ elif args.mode == "baseline3":
     # Initial online
 
     epsilons = generate_epsilon_values(
-        args.interventions + 1, max_epsilon, min_epsilon, steepness=1.5
+        args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75
     )
     intervention_steps = generate_step_counts(
         args.steps, args.interventions + 1, steepness=1.5
@@ -438,7 +438,7 @@ elif args.mode == "baseline3":
                 data = pickle.load(f)
 
             # Update the "rewards" based on human feedback
-            updated_rewards = update_rewards(
+            updated_rewards = update_last_reward(
                 data["rewards"], feedback, best_extra_reward, worst_extra_reward
             )
             # Save the modified "rewards" to the pickle file
