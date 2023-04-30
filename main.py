@@ -316,30 +316,15 @@ elif args.mode == "baseline3":
 
     offline_training_steps = int(args.steps / 10)
 
-    def update_rewards(rewards, feedback, best_reward, worst_reward):
-        feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
-
-        for rank, idx in feedback_dict.items():
-            reward_modification = (
-                best_reward - (rank - 1) * (best_reward - worst_reward) / 2
-            )
-            rewards[idx] += reward_modification
-
-        return rewards
-
-    def update_last_reward(rewards, feedback, best_reward, worst_reward):
-        feedback_dict = {int(rank): idx for idx, rank in enumerate(feedback)}
-
-        # Find the last element in the rewards list
+    def update_last_reward(rewards, rank, best_reward, worst_reward):
         last_element_idx = len(rewards) - 1
+        rank = int(rank)
 
-        # Check if the last element has a rank in the feedback_dict
-        for rank, idx in feedback_dict.items():
-            if idx == last_element_idx:
-                reward_modification = (
-                    best_reward - (rank - 1) * (best_reward - worst_reward) / 2
-                )
-                rewards[idx] += reward_modification
+        reward_modification = (
+            best_reward - (rank - 1) * (best_reward - worst_reward) / 4
+        )
+        rewards[last_element_idx] += reward_modification
+        print(rank, reward_modification)
 
         return rewards
 
@@ -439,9 +424,10 @@ elif args.mode == "baseline3":
 
             # Update the "rewards" based on human feedback
             updated_rewards = update_last_reward(
-                data["rewards"], feedback, best_extra_reward, worst_extra_reward
+                data["rewards"], feedback[i], best_extra_reward, worst_extra_reward
             )
             # Save the modified "rewards" to the pickle file
+
             data["rewards"] = updated_rewards
             with open(
                 f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
