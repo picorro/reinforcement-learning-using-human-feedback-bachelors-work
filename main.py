@@ -84,6 +84,11 @@ algorithm_name = args.algorithm_name
 algorithm = None
 
 dataset = env = None
+# intervention_steps = generate_step_counts(
+#     args.steps, args.interventions + 1, steepness=1.5
+# )
+# print(intervention_steps)
+# sys.exit()
 
 if args.dataset != None:
     print(f"./datasets/{args.dataset}")
@@ -106,9 +111,9 @@ if algorithm_name == "dqn":
         learning_rate=2.5e-4,
         optim_factory=d3rlpy.models.optimizers.RMSpropFactory(),
         q_func_factory="mean",
-        scaler="pixel",
+        # scaler="pixel",
         target_update_interval=10000 // 4,
-        n_frames=4,
+        # n_frames=4,
         batch_size=32,
         use_gpu=args.gpu,
     )
@@ -281,7 +286,7 @@ elif args.mode == "baseline3":
         args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75
     )
     intervention_steps = generate_step_counts(
-        args.steps, args.interventions + 1, steepness=1.5
+        args.steps, args.interventions + 1, steepness=1.2
     )
 
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
