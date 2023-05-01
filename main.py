@@ -18,6 +18,7 @@ import pickle
 import cv2
 import warnings
 from utils import combine_tensorboard_logs
+from d3rlpy.models.optimizers import RMSpropFactory
 
 # Ignore some warnings that stem from Tkinter library
 warnings.filterwarnings("ignore", message="Exception in thread*")
@@ -106,17 +107,23 @@ else:
     print("Could not find environment! Exiting...")
     sys.exit()
 
+
+def getAlgorithm(name: str, learning_rate):
+    if name == "dqn":
+        return d3rlpy.algos.DQN(
+            learning_rate=learning_rate,
+            optim_factory=RMSpropFactory(),
+            q_func_factory="mean",
+            # scaler="pixel",
+            target_update_interval=10000 // 4,
+            # n_frames=4,
+            batch_size=32,
+            use_gpu=args.gpu,
+        )
+
+
 if algorithm_name == "dqn":
-    algorithm = d3rlpy.algos.DQN(
-        learning_rate=2.5e-4,
-        optim_factory=d3rlpy.models.optimizers.RMSpropFactory(),
-        q_func_factory="mean",
-        # scaler="pixel",
-        target_update_interval=10000 // 4,
-        # n_frames=4,
-        batch_size=32,
-        use_gpu=args.gpu,
-    )
+    algorithm = getAlgorithm("dqn", 2.5e-4)
 elif algorithm_name == "cql":
     algorithm = d3rlpy.algos.DiscreteCQL(use_gpu=args.gpu)
 elif algorithm_name == "cqlcontinuous":
@@ -255,7 +262,10 @@ elif args.mode == "baseline2":
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}.pt")
     sys.exit()
 elif args.mode == "baseline3":
-    # Parameters
+    # Hardcoded params for baseline 3
+    b3_online_learning_rate = 2.5e-4
+    b3_offline_learning_rate = 2.5e-5
+
     min_epsilon = 0.05
     max_epsilon = 0.7
 
@@ -479,6 +489,9 @@ elif args.mode == "baseline3":
         )
 
         # Train offline
+        print("Setting learning rate to be 10x lower...")
+        algorithm = getAlgorithm(algorithm_name, b3_offline_learning_rate)
+
         print("Training offline...")
         algorithm.fit(
             dataset,
@@ -499,6 +512,9 @@ elif args.mode == "baseline3":
             end_epsilon=epsilons[1],
             duration=intervention_steps[0],
         )
+
+        print("Restoring learning rate...")
+        algorithm = getAlgorithm(algorithm_name, b3_online_learning_rate)
         print("Training online...")
         algorithm.fit_online(
             env,
