@@ -491,7 +491,7 @@ elif args.mode == "baseline3":
         )
 
         # Train online
-        buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
+        # buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
         if len(epsilons) == 1:
             epsilons = np.append(epsilons, min_epsilon)
         explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
@@ -499,7 +499,7 @@ elif args.mode == "baseline3":
             end_epsilon=epsilons[1],
             duration=intervention_steps[0],
         )
-        print("Training offline...")
+        print("Training online...")
         algorithm.fit_online(
             env,
             buffer,
