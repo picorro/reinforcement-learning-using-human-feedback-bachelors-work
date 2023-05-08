@@ -12,7 +12,12 @@ import os
 import sys
 import gym
 from feedback import Feedback
-from intervention import generate_step_counts, generate_epsilon_values
+from intervention import (
+    generate_step_counts,
+    generate_epsilon_values,
+    create_step_filled_array,
+    generate_epsilon_linear_array,
+)
 import numpy as np
 import pickle
 import cv2
@@ -38,9 +43,7 @@ def str2bool(value) -> bool:
 
 # Argument Parsing
 parser = argparse.ArgumentParser(description="Parsing module.")
-parser.add_argument(
-    "-a", "--algorithm_name", type=str, default="no_algorithm", help="Algorithm: --dqn"
-)
+parser.add_argument("-a", "--algorithm_name", type=str, default="no_algorithm", help="Algorithm: --dqn")
 parser.add_argument(
     "-e",
     "--environment",
@@ -69,12 +72,8 @@ parser.add_argument(
     type=str,
     help="Trained model file name yyyy-mm-dd-HH-MM-SS",
 )
-parser.add_argument(
-    "-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS"
-)
-parser.add_argument(
-    "-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False
-)
+parser.add_argument("-d", "--dataset", type=str, help="Dataset file name yyyy-mm-dd-HH-MM-SS")
+parser.add_argument("-g", "--gpu", type=str2bool, help="Use GPU? True/False", default=False)
 parser.add_argument("-nm", "--name", type=str, help="Name", default="")
 
 args = parser.parse_args()
@@ -85,10 +84,19 @@ algorithm_name = args.algorithm_name
 algorithm = None
 
 dataset = env = None
-# intervention_steps = generate_step_counts(
-#     args.steps, args.interventions + 1, steepness=1.5
+
+# online_step_count_per_evaluation = 30000
+
+# max_epsilon = 0.7
+# min_epsilon = 0.1
+
+
+# intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
+# epsilons = generate_epsilon_linear_array(
+#     max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation * 10, args.steps
 # )
 # print(intervention_steps)
+# print(epsilons)
 # sys.exit()
 
 if args.dataset != None:
@@ -185,9 +193,7 @@ elif args.mode == "baseline1":
     algorithm.build_with_env(env)
     # Replay buffer
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
-    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
-        start_epsilon=1.0, end_epsilon=0.1, duration=1000000
-    )
+    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(start_epsilon=1.0, end_epsilon=0.1, duration=1000000)
 
     tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
     if not os.path.exists(tensorboard_log_dir):
@@ -236,9 +242,7 @@ elif args.mode == "baseline2":
     # Prepare environment
     # Replay buffer
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
-    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
-        start_epsilon=0.7, end_epsilon=0.1, duration=1000000
-    )
+    explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(start_epsilon=0.7, end_epsilon=0.1, duration=1000000)
 
     algorithm.fit_online(
         env,
@@ -264,9 +268,11 @@ elif args.mode == "baseline2":
 elif args.mode == "baseline3":
     # Hardcoded params for baseline 3
     b3_online_learning_rate = 2.5e-4
-    b3_offline_learning_rate = 2.5e-5
+    b3_offline_learning_rate = 2.5e-4
 
-    min_epsilon = 0.05
+    online_step_count_per_evaluation = 30000
+
+    min_epsilon = 0.1
     max_epsilon = 0.7
 
     tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
@@ -286,18 +292,14 @@ elif args.mode == "baseline3":
         tensorboard_dir=tensorboard_log_dir + "-initialoffline",
     )
 
-    algorithm.save_model(
-        f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt"
-    )
+    algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt")
 
     # Initial online
+    # intervention_steps = generate_step_counts(args.steps, args.interventions + 1, steepness=1.2)
+    # epsilons = generate_epsilon_values(args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75)
 
-    epsilons = generate_epsilon_values(
-        args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75
-    )
-    intervention_steps = generate_step_counts(
-        args.steps, args.interventions + 1, steepness=1.2
-    )
+    intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
+    epsilons = generate_epsilon_linear_array(max_epsilon, min_epsilon, args.interventions + 1)
 
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
     explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
@@ -325,9 +327,7 @@ elif args.mode == "baseline3":
     except:
         print("Intervention or Step parameters seem to be wrong!")
 
-    algorithm.save_model(
-        f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt"
-    )
+    algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}-initialonline.pt")
 
     offline_training_steps = int(args.steps / 10)
 
@@ -335,9 +335,7 @@ elif args.mode == "baseline3":
         last_element_idx = len(rewards) - 1
         rank = int(rank)
 
-        reward_modification = (
-            best_reward - (rank - 1) * (best_reward - worst_reward) / 4
-        )
+        reward_modification = best_reward - (rank - 1) * (best_reward - worst_reward) / 4
         rewards[last_element_idx] += reward_modification
         print(rank, reward_modification)
 
@@ -416,9 +414,7 @@ elif args.mode == "baseline3":
                 "discrete_action": isinstance(env.action_space, gym.spaces.Discrete),
             }
 
-            with open(
-                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
-            ) as f:
+            with open(f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb") as f:
                 pickle.dump(data, f)
 
         # Evaluate trajectories
@@ -432,21 +428,15 @@ elif args.mode == "baseline3":
         for i, video_name in enumerate(video_names):
             epsilon = trajectory_epsilons[i]
 
-            with open(
-                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
-            ) as f:
+            with open(f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb") as f:
                 data = pickle.load(f)
 
             # Update the "rewards" based on human feedback
-            updated_rewards = update_last_reward(
-                data["rewards"], feedback[i], best_extra_reward, worst_extra_reward
-            )
+            updated_rewards = update_last_reward(data["rewards"], feedback[i], best_extra_reward, worst_extra_reward)
             # Save the modified "rewards" to the pickle file
 
             data["rewards"] = updated_rewards
-            with open(
-                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb"
-            ) as f:
+            with open(f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "wb") as f:
                 pickle.dump(data, f)
 
         # Offline training with data
@@ -463,9 +453,7 @@ elif args.mode == "baseline3":
         }
 
         for epsilon in trajectory_epsilons:
-            with open(
-                f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb"
-            ) as f:
+            with open(f"./datasets/trajectories/{start_time}/{idx}/{epsilon}.pkl", "rb") as f:
                 data = pickle.load(f)
                 combined_data["observations"].extend(data["observations"])
                 combined_data["actions"].extend(data["actions"])
@@ -478,9 +466,7 @@ elif args.mode == "baseline3":
         for key in ["observations", "actions", "rewards", "next_states", "terminals"]:
             combined_data[key] = np.array(combined_data[key])
 
-        with open(
-            f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl", "wb"
-        ) as f:
+        with open(f"./datasets/trajectories/{start_time}/{idx}/combined_data.pkl", "wb") as f:
             pickle.dump(combined_data, f)
 
         dataset = Feedback.load_dataset_from_pickle(
@@ -499,9 +485,7 @@ elif args.mode == "baseline3":
             n_steps_per_epoch=1000,
             tensorboard_dir=f"{tensorboard_log_dir}-offline",
         )
-        algorithm.save_model(
-            f"./trained_models/{algorithm_name}/{start_time}{idx}offline.pt"
-        )
+        algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}{idx}offline.pt")
 
         # Train online
         # buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
@@ -533,9 +517,7 @@ elif args.mode == "baseline3":
         except:
             print("Last Cycle. Saving model and quitting!")
 
-        algorithm.save_model(
-            f"./trained_models/{algorithm_name}/{start_time}{idx}online.pt"
-        )
+        algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}{idx}online.pt")
 
     # Combine online training logs
 
