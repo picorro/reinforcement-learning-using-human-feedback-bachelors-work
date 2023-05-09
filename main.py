@@ -85,7 +85,7 @@ algorithm = None
 
 dataset = env = None
 
-# online_step_count_per_evaluation = 30000
+# online_step_count_per_evaluation = 20000
 
 # max_epsilon = 0.7
 # min_epsilon = 0.1
@@ -93,7 +93,7 @@ dataset = env = None
 
 # intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
 # epsilons = generate_epsilon_linear_array(
-#     max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation * 10, args.steps
+#     max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation, args.steps
 # )
 # print(intervention_steps)
 # print(epsilons)
@@ -270,7 +270,7 @@ elif args.mode == "baseline3":
     b3_online_learning_rate = 2.5e-4
     b3_offline_learning_rate = 2.5e-4
 
-    online_step_count_per_evaluation = 30000
+    online_step_count_per_evaluation = int(args.steps / 200)
 
     min_epsilon = 0.1
     max_epsilon = 0.7
@@ -298,8 +298,14 @@ elif args.mode == "baseline3":
     # intervention_steps = generate_step_counts(args.steps, args.interventions + 1, steepness=1.2)
     # epsilons = generate_epsilon_values(args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75)
 
+    print("Generating step and epsilon progression arrays...")
     intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
-    epsilons = generate_epsilon_linear_array(max_epsilon, min_epsilon, args.interventions + 1)
+    epsilons = generate_epsilon_linear_array(
+        max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation * 10, args.steps
+    )
+
+    print(f"Steps: {intervention_steps}")
+    print(f"Epsilons: {epsilons}")
 
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
     explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(

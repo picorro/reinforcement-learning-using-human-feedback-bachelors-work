@@ -10,3 +10,4 @@ __pycache__
 /.history/*
 /averaged_logs/*
 /exported_data/*
+/temp_averaged_logs/*
