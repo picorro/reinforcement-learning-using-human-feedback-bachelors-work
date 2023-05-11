@@ -83,9 +83,14 @@ start_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + args.name
 algorithm_name = args.algorithm_name
 algorithm = None
 
+# combine_tensorboard_logs(
+#     "C:\\Users\\DaliusBudrys\\Desktop\\Bachelor Training\\reinforcement-learning-using-human-feedback-bachelors-work\\tensorboard_logs\dqn\\2023-05-11-03-37-490.7-0.05-in700k-lrnormal-25ksteps-online\\runs"
+# )
+# sys.exit()
+
 dataset = env = None
 
-# online_step_count_per_evaluation = 20000
+# online_step_count_per_evaluation = 1000
 
 # max_epsilon = 0.7
 # min_epsilon = 0.1
@@ -93,10 +98,12 @@ dataset = env = None
 
 # intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
 # epsilons = generate_epsilon_linear_array(
-#     max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation, args.steps
+#     max_epsilon, min_epsilon, args.interventions + 2, online_step_count_per_evaluation, args.steps
 # )
 # print(intervention_steps)
 # print(epsilons)
+# duration = intervention_steps[3] if intervention_steps[3] < 700000 else 700000
+# print(duration)
 # sys.exit()
 
 if args.dataset != None:
@@ -122,9 +129,9 @@ def getAlgorithm(name: str, learning_rate):
             learning_rate=learning_rate,
             optim_factory=RMSpropFactory(),
             q_func_factory="mean",
-            # scaler="pixel",
+            scaler="pixel",
             target_update_interval=10000 // 4,
-            # n_frames=4,
+            n_frames=4,
             batch_size=32,
             use_gpu=args.gpu,
         )
@@ -268,9 +275,9 @@ elif args.mode == "baseline2":
 elif args.mode == "baseline3":
     # Hardcoded params for baseline 3
     b3_online_learning_rate = 2.5e-4
-    b3_offline_learning_rate = 2.5e-4
+    b3_offline_learning_rate = 2.5e-5
 
-    online_step_count_per_evaluation = int(args.steps / 200)
+    online_step_count_per_evaluation = int(args.steps / 100)
 
     min_epsilon = 0.1
     max_epsilon = 0.7
@@ -301,8 +308,8 @@ elif args.mode == "baseline3":
     print("Generating step and epsilon progression arrays...")
     intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
     epsilons = generate_epsilon_linear_array(
-        max_epsilon, min_epsilon, args.interventions + 1, online_step_count_per_evaluation * 10, args.steps
-    )
+        max_epsilon, min_epsilon, args.interventions + 2, online_step_count_per_evaluation, args.steps
+    )  # one for initial and extra since one is left
 
     print(f"Steps: {intervention_steps}")
     print(f"Epsilons: {epsilons}")
@@ -311,7 +318,7 @@ elif args.mode == "baseline3":
     explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
         start_epsilon=epsilons[0],
         end_epsilon=epsilons[1],
-        duration=intervention_steps[0],
+        duration=intervention_steps[0] if intervention_steps[0] < 700000 else 700000,
     )
     try:
         epsilons = np.delete(epsilons, 0)
@@ -356,7 +363,7 @@ elif args.mode == "baseline3":
 
     for idx in range(0, args.interventions):
         print(
-            f"RLHF Loop index: {idx + 1}. Current epsilon: {epsilons[0]}, Current online training steps: {intervention_steps[0]}"
+            f"RLHF Loop index: {idx + 1}. Current epsilon: {epsilons[0]} will decay into: {epsilons[1]}, Current online training steps: {intervention_steps[0]}"
         )
 
         # Generate trajectories
@@ -502,6 +509,7 @@ elif args.mode == "baseline3":
             end_epsilon=epsilons[1],
             duration=intervention_steps[0],
         )
+        print("explorers", epsilons[0], epsilons[1], intervention_steps[0])
 
         print("Restoring learning rate...")
         algorithm = getAlgorithm(algorithm_name, b3_online_learning_rate)
