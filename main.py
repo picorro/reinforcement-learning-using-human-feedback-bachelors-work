@@ -274,12 +274,10 @@ elif args.mode == "baseline2":
     sys.exit()
 elif args.mode == "baseline3":
     # Hardcoded params for baseline 3
-    # b3_online_learning_rate = 2.5e-4
-    # b3_offline_learning_rate = 2.5e-4
 
     online_step_count_per_evaluation = int(args.steps / 100)
 
-    min_epsilon = 0.05
+    min_epsilon = 0.1
     max_epsilon = 0.7
 
     tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}"
@@ -301,14 +299,10 @@ elif args.mode == "baseline3":
 
     algorithm.save_model(f"./trained_models/{algorithm_name}/{start_time}-initialoffline.pt")
 
-    # Initial online
-    # intervention_steps = generate_step_counts(args.steps, args.interventions + 1, steepness=1.2)
-    # epsilons = generate_epsilon_values(args.interventions + 1, max_epsilon, min_epsilon, steepness=0.75)
-
     print("Generating step and epsilon progression arrays...")
     intervention_steps = create_step_filled_array(online_step_count_per_evaluation, args.interventions + 1, args.steps)
     epsilons = generate_epsilon_linear_array(
-        max_epsilon, min_epsilon, args.interventions + 2, online_step_count_per_evaluation * 10, args.steps
+        max_epsilon, min_epsilon, args.interventions + 2, online_step_count_per_evaluation, args.steps
     )  # one for initial and extra since one is left
 
     print(f"Steps: {intervention_steps}")
@@ -356,10 +350,6 @@ elif args.mode == "baseline3":
 
     best_extra_reward = 100
     worst_extra_reward = -100
-
-    # human_feecback_loop_tensorboard_log_dir = f"tensorboard_logs/{algorithm_name}/{start_time}/human-feedback-loop"
-    # if not os.path.exists(human_feecback_loop_tensorboard_log_dir):
-    #     os.makedirs(human_feecback_loop_tensorboard_log_dir)
 
     for idx in range(0, args.interventions):
         print(
@@ -507,7 +497,7 @@ elif args.mode == "baseline3":
         explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(
             start_epsilon=epsilons[0],
             end_epsilon=epsilons[1],
-            duration=intervention_steps[0],
+            duration=intervention_steps[0] if intervention_steps[0] < 700000 else 700000,
         )
         print("explorers", epsilons[0], epsilons[1], intervention_steps[0])
 
