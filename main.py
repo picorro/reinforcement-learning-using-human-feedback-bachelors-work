@@ -129,9 +129,9 @@ def getAlgorithm(name: str, learning_rate):
             learning_rate=learning_rate,
             optim_factory=RMSpropFactory(),
             q_func_factory="mean",
-            # scaler="pixel",
+            scaler="pixel",
             target_update_interval=10000 // 4,
-            # n_frames=4,
+            n_frames=4,
             batch_size=32,
             use_gpu=args.gpu,
         )
@@ -275,7 +275,7 @@ elif args.mode == "baseline2":
 elif args.mode == "baseline3":
     # Hardcoded params for baseline 3
 
-    online_step_count_per_evaluation = int(args.steps / 100)
+    online_step_count_per_evaluation = int(args.steps / 400)
 
     min_epsilon = 0.1
     max_epsilon = 0.7
@@ -480,6 +480,11 @@ elif args.mode == "baseline3":
         # Train offline
         # print("Setting learning rate to be 10x lower...")
         # algorithm = getAlgorithm(algorithm_name, b3_offline_learning_rate)
+
+        # train_episodes, test_episodes = train_test_split(dataset, test_size=0.2)
+
+        # algorithm.build_with_dataset(dataset)
+        # td_error = td_error_scorer(algorithm, test_episodes)
 
         print("Training offline...")
         algorithm.fit(
