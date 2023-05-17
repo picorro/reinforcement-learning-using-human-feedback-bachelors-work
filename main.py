@@ -175,9 +175,7 @@ elif args.mode == "play":
     sys.exit()
 
 elif args.mode == "baseline1":
-    # Prepare environment
     algorithm.build_with_env(env)
-    # Replay buffer
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
     explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(start_epsilon=1.0, end_epsilon=0.1, duration=1000000)
 
@@ -225,8 +223,6 @@ elif args.mode == "baseline2":
         tensorboard_dir=tensorboard_log_dir + "-initialoffline",
     )
 
-    # Prepare environment
-    # Replay buffer
     buffer = d3rlpy.online.buffers.ReplayBuffer(maxlen=1000000, env=env)
     explorer = d3rlpy.online.explorers.LinearDecayEpsilonGreedy(start_epsilon=0.7, end_epsilon=0.1, duration=1000000)
 
