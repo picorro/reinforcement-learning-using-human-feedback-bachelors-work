@@ -1,3 +1,5 @@
+Python ver 3.8.10 <\br>
+
 Installing requirements: </br>
 ```pip install -r requirements.txt``` </br>
 Recording a gameplay dataset: </br>
