@@ -1,6 +1,13 @@
-gym==0.25.1
+ale_py==0.7.4
 d3rlpy==1.1.1
-tensorboard==2.12.1
-pandas==2.0.0
+gym==0.25.2
 matplotlib==3.7.1
-gym[classic_control]
+numpy==1.23.5
+opencv_python==4.7.0.72
+pandas==2.0.0
+scikit_learn==1.2.2
+tensorboard==2.12.1
+tensorflow==2.12.0
+tensorflow_intel==2.12.0
+tkVideo==0.1
+tkvideoplayer==2.3
